@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "virgin-estate-agents",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-06-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // Non-secret config. Secrets (DATABASE_URL, SESSION_SECRET, RESEND_API_KEY,
+  // R2 credentials) are set with `wrangler secret put <NAME>` or in `.dev.vars`
+  // for local preview — never commit them here.
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://virgin-estate-agents.virgin-estate-agents.workers.dev"
+  }
+  // R2 bucket for property images — uncomment and create the bucket before
+  // running `wrangler dev` / deploy:
+  //
+  // "r2_buckets": [
+  //   { "binding": "MEDIA", "bucket_name": "virgin-estate-media" }
+  // ]
+}

@@ -1,26 +1,114 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ------------------------------------------------------------------------- */
+/*  Design tokens — warm-paper minimalism with a deep estate-green accent.    */
+/* ------------------------------------------------------------------------- */
+@theme {
+  /* Surfaces & ink */
+  --color-paper: #faf9f5;
+  --color-paper-2: #f3f1ea;
+  --color-card: #ffffff;
+  --color-ink: #1b1a17;
+  --color-ink-soft: #44423c;
+  --color-muted: #76736a;
+  --color-line: #e7e3d9;
+
+  /* Brand — deep forest green */
+  --color-brand-50: #eef4f0;
+  --color-brand-100: #d6e5dc;
+  --color-brand-300: #8db8a4;
+  --color-brand-500: #2c5e49;
+  --color-brand: #1f4434;
+  --color-brand-700: #173326;
+  --color-brand-900: #0f2118;
+
+  /* Accent — muted brass for fine detail */
+  --color-sand: #b89b6e;
+
+  /* Status */
+  --color-amber: #b4761f;
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  /* Rhythm */
+  --radius: 0.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ------------------------------------------------------------------------- */
+/*  Base                                                                      */
+/* ------------------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-brand);
+    color: #fff;
+  }
+
+  /* Keyboard focus visibility for links and interactive elements. */
+  a:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+  }
+
+  .mapboxgl-map {
+    font-family: var(--font-sans);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Subtle entrance used by sections. */
+  .fade-up {
+    animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
