@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-o
 
 import { db } from "@/db";
 import { listings, listingImages } from "@/db/schema";
+import { safeRead } from "./_safe";
 
 export type PublicListingFilters = {
   kind?: "sale" | "rent";
@@ -51,54 +52,67 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
         ? [desc(listings.price)]
         : [desc(listings.publishedAt), desc(listings.createdAt)];
 
-  const [rows, totalRow] = await Promise.all([
-    db.query.listings.findMany({
-      where,
-      orderBy,
-      limit: perPage,
-      offset: (page - 1) * perPage,
-      with: {
-        agent: true,
-        images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
-      },
-    }),
-    db.select({ count: sql<number>`count(*)::int` }).from(listings).where(where),
-  ]);
+  return safeRead(
+    async () => {
+      const [rows, totalRow] = await Promise.all([
+        db.query.listings.findMany({
+          where,
+          orderBy,
+          limit: perPage,
+          offset: (page - 1) * perPage,
+          with: {
+            agent: true,
+            images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+          },
+        }),
+        db.select({ count: sql<number>`count(*)::int` }).from(listings).where(where),
+      ]);
 
-  return {
-    items: rows,
-    total: totalRow[0]?.count ?? 0,
-    page,
-    perPage,
-    pageCount: Math.max(1, Math.ceil((totalRow[0]?.count ?? 0) / perPage)),
-  };
+      return {
+        items: rows,
+        total: totalRow[0]?.count ?? 0,
+        page,
+        perPage,
+        pageCount: Math.max(1, Math.ceil((totalRow[0]?.count ?? 0) / perPage)),
+      };
+    },
+    { items: [], total: 0, page, perPage, pageCount: 1 },
+  );
 }
 
 /** Featured listings for the homepage. */
 export async function getFeaturedListings(limit = 6) {
-  return db.query.listings.findMany({
-    where: and(
-      eq(listings.isFeatured, true),
-      inArray(listings.status, [...PUBLIC_STATUSES]),
-    ),
-    orderBy: [desc(listings.publishedAt), desc(listings.createdAt)],
-    limit,
-    with: {
-      agent: true,
-      images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
-    },
-  });
+  return safeRead(
+    () =>
+      db.query.listings.findMany({
+        where: and(
+          eq(listings.isFeatured, true),
+          inArray(listings.status, [...PUBLIC_STATUSES]),
+        ),
+        orderBy: [desc(listings.publishedAt), desc(listings.createdAt)],
+        limit,
+        with: {
+          agent: true,
+          images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+        },
+      }),
+    [],
+  );
 }
 
 /** Public detail page by slug (any public status). */
 export async function getListingBySlug(slug: string) {
-  return db.query.listings.findFirst({
-    where: eq(listings.slug, slug),
-    with: {
-      agent: true,
-      images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
-    },
-  });
+  return safeRead(
+    () =>
+      db.query.listings.findFirst({
+        where: eq(listings.slug, slug),
+        with: {
+          agent: true,
+          images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+        },
+      }),
+    undefined,
+  );
 }
 
 /** Similar listings (same suburb or type), excluding the current one. */
@@ -116,14 +130,18 @@ export async function getSimilarListings(
     match.push(eq(listings.propertyType, opts.propertyType as never));
   if (match.length) conditions.push(or(...match)!);
 
-  return db.query.listings.findMany({
-    where: and(...conditions),
-    orderBy: [desc(listings.createdAt)],
-    limit: opts.limit ?? 3,
-    with: {
-      images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
-    },
-  });
+  return safeRead(
+    () =>
+      db.query.listings.findMany({
+        where: and(...conditions),
+        orderBy: [desc(listings.createdAt)],
+        limit: opts.limit ?? 3,
+        with: {
+          images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+        },
+      }),
+    [],
+  );
 }
 
 /* ----------------------------- Admin reads ------------------------------- */
@@ -155,8 +173,12 @@ export type ListingWithRelations = NonNullable<
 
 /** Slugs + timestamps of public listings, for the sitemap. */
 export async function getPublicListingSlugs() {
-  return db
-    .select({ slug: listings.slug, updatedAt: listings.updatedAt })
-    .from(listings)
-    .where(inArray(listings.status, [...PUBLIC_STATUSES]));
+  return safeRead(
+    () =>
+      db
+        .select({ slug: listings.slug, updatedAt: listings.updatedAt })
+        .from(listings)
+        .where(inArray(listings.status, [...PUBLIC_STATUSES])),
+    [] as { slug: string; updatedAt: Date }[],
+  );
 }

@@ -34,15 +34,36 @@ function createDb(): NeonHttpDatabase<typeof schema> {
   }) as unknown as NeonHttpDatabase<typeof schema>;
 }
 
-// Reuse the connection across HMR reloads in dev.
+// Reuse the connection across requests / HMR reloads.
 const globalForDb = globalThis as unknown as {
   __db__?: NeonHttpDatabase<typeof schema>;
 };
 
-export const db = globalForDb.__db__ ?? createDb();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__db__ = db;
+function getDb(): NeonHttpDatabase<typeof schema> {
+  if (!globalForDb.__db__) {
+    globalForDb.__db__ = createDb();
+  }
+  return globalForDb.__db__;
 }
+
+/**
+ * Lazy proxy: importing `db` never opens a connection, so modules load fine
+ * even when DATABASE_URL is absent (e.g. a fresh deploy before the database is
+ * wired up). The connection is created on the first query. Public data reads
+ * wrap their queries in `safeRead()` so pages degrade to empty states rather
+ * than 500 when the database is unconfigured or unreachable.
+ */
+export const db = new Proxy({} as NeonHttpDatabase<typeof schema>, {
+  get(_target, prop) {
+    const real = getDb() as unknown as Record<string | symbol, unknown>;
+    const value = real[prop];
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(real)
+      : value;
+  },
+});
+
+/** Whether a database connection string is configured for this runtime. */
+export const isDbConfigured = Boolean(process.env.DATABASE_URL);
 
 export { schema };

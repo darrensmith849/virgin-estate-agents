@@ -5,11 +5,13 @@ type Variant = "primary" | "outline" | "ghost" | "subtle";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand text-white hover:bg-brand-700",
-  outline: "border border-line bg-transparent text-ink hover:bg-paper-2",
+  primary:
+    "bg-brand text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_10px_24px_-12px_rgba(15,33,24,0.6)] hover:bg-brand-700 hover:-translate-y-px hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_16px_32px_-12px_rgba(15,33,24,0.66)]",
+  outline:
+    "border border-line bg-transparent text-ink hover:bg-paper-2 hover:border-sand/40",
   ghost: "text-ink hover:bg-paper-2",
   subtle: "bg-paper-2 text-ink hover:bg-line",
 };

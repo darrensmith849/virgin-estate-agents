@@ -44,8 +44,15 @@
     scroll-behavior: smooth;
   }
 
+  html,
   body {
-    background-color: var(--color-paper);
+    background-color: #101815;
+    /* `clip` (not `hidden`) prevents a horizontal scrollbar WITHOUT turning the
+       page into a scroll container — which would break `position: sticky`. */
+    overflow-x: clip;
+  }
+
+  body {
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -74,6 +81,15 @@
     font-weight: 400;
     letter-spacing: -0.01em;
     color: var(--color-ink);
+    /* Let Fraunces use its optical-size + soft-serif refinements and proper
+       ligatures, so headings read like considered editorial type. */
+    font-optical-sizing: auto;
+    font-feature-settings: "liga" 1, "calt" 1, "dlig" 1;
+  }
+
+  /* Prices, figures and stats align cleanly with lining tabular numerals. */
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .mapboxgl-map {
@@ -86,12 +102,53 @@
   .fade-up {
     animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+
+  /* Animated underline that grows from the left on hover. */
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .link-underline:hover,
+  .group:hover .link-underline {
+    background-size: 100% 1px;
+  }
+
 }
 
 @keyframes fade-up {
   from {
     opacity: 0;
     transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/*  Scroll reveal — sections ease in as they enter the viewport.             */
+/*  Pure CSS via scroll-driven animations. The @supports guard means that    */
+/*  browsers without this feature never apply the hidden start state, so     */
+/*  content is always visible there (graceful, no JS, nothing to break).     */
+/* ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 14%;
+    }
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -111,4 +168,796 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+
+/* ========================================================================= */
+/*  Premium background system — dark hero, then silver ↔ ivory content       */
+/* ========================================================================= */
+
+/* Hero — its own opaque dark base + the existing hero image, so the silver
+   can never flash behind it during load. Tucked under the transparent header. */
+.hero-section {
+  position: relative;
+  min-height: 100svh;
+  margin-top: -4.5rem;
+  overflow: hidden;
+  isolation: isolate;
+  background-color: #101815;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(11, 20, 17, 0.72),
+      rgba(11, 20, 17, 0.28),
+      rgba(11, 20, 17, 0.48)
+    ),
+    var(--hero-image);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.hero-image {
+  object-fit: cover;
+  opacity: 1;
+  z-index: -3;
+}
+
+/* Refined cinematic treatment — keeps the dusk photo, but tames the highlights
+   behind the centred headline so the white serif reads cleanly and premium. */
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    /* cinematic corner vignette */
+    radial-gradient(120% 120% at 50% 50%, transparent 50%, rgba(6, 11, 9, 0.52) 100%),
+    /* focus darkening directly behind the centred headline (this is a bright
+       daytime photo, so it carries a little more weight than a dusk shot) */
+    radial-gradient(
+      76% 60% at 50% 46%,
+      rgba(6, 11, 9, 0.64),
+      rgba(6, 11, 9, 0.2) 62%,
+      transparent 82%
+    ),
+    /* warm estate glow — kept low and left, away from the text */
+    radial-gradient(55% 45% at 26% 80%, rgba(196, 154, 85, 0.1), transparent 70%),
+    /* vertical scrim: anchors the nav up top and grounds the foot */
+    linear-gradient(
+      180deg,
+      rgba(6, 11, 9, 0.56) 0%,
+      rgba(6, 11, 9, 0.22) 26%,
+      rgba(6, 11, 9, 0.24) 62%,
+      rgba(6, 11, 9, 0.6) 100%
+    );
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: clamp(7rem, 12vw, 10rem) clamp(1.25rem, 8vw, 8rem);
+  color: #fff;
+}
+
+.hero-kicker {
+  margin: 0 0 1rem;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+
+.hero-content h1 {
+  max-width: 820px;
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(2.9rem, 6vw, 6rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  text-shadow: 0 2px 36px rgba(0, 0, 0, 0.55);
+}
+
+.hero-copy {
+  max-width: 600px;
+  margin: 1.5rem 0 2.25rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(1.02rem, 1.3vw, 1.3rem);
+  line-height: 1.65;
+  text-shadow: 0 1px 22px rgba(0, 0, 0, 0.5);
+}
+
+.hero-search {
+  width: 100%;
+  max-width: 48rem;
+  text-align: left;
+}
+
+/* ------------------------------------------------------------------------- */
+/*  Hero entrance choreography — the headline elements rise and resolve into  */
+/*  focus in sequence on load, giving the first impression a crafted,         */
+/*  cinematic feel. Pure CSS, reduced-motion users get the calm static state. */
+/* ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-kicker,
+  .hero-content h1,
+  .hero-copy,
+  .hero-search {
+    animation: hero-rise 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .hero-kicker {
+    animation-delay: 0.15s;
+  }
+  .hero-content h1 {
+    animation: hero-rise-focus 1.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 0.28s;
+  }
+  .hero-copy {
+    animation-delay: 0.52s;
+  }
+  .hero-search {
+    animation-delay: 0.66s;
+  }
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The headline also resolves out of a soft blur — a touch of cinema. */
+@keyframes hero-rise-focus {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* Content shell — warm champagne-silver ↔ ivory ↔ soft stone behind all
+   post-hero content. Warm and elegant, never cold grey; texture is barely-there.
+   Applied to <main>; the hero (opaque dark) covers it at the top.
+   NOTE: overflow-x: clip (not overflow: hidden) — the hero is the shell's first
+   child and tucks under the transparent nav via a negative top margin, which
+   overflow: hidden would clip. clip still contains horizontal gradient overflow. */
+.ve-content-shell {
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+  background:
+    radial-gradient(circle at 78% 6%, rgba(255, 255, 255, 0.92), transparent 26rem),
+    radial-gradient(circle at 16% 14%, rgba(216, 197, 161, 0.18), transparent 24rem),
+    radial-gradient(circle at 82% 54%, rgba(255, 255, 255, 0.48), transparent 32rem),
+    linear-gradient(
+      180deg,
+      #d6d1c8 0%,
+      #e6e0d6 16%,
+      #f6f2ea 30%,
+      #efe9df 48%,
+      #ddd7ce 66%,
+      #f5f1e8 82%,
+      #e3ddd3 100%
+    );
+}
+
+/* Soft champagne sheen — warm metallic reflection. */
+.ve-content-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.08) 35%,
+    rgba(184, 154, 120, 0.06) 55%,
+    rgba(255, 255, 255, 0.22)
+  );
+  mix-blend-mode: soft-light;
+}
+
+/* Barely-there editorial grid (nearly invisible — not graph paper). */
+.ve-content-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image:
+    linear-gradient(rgba(30, 30, 30, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 30, 30, 0.22) 1px, transparent 1px);
+  background-size: 120px 120px;
+}
+
+.ve-content-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .hero-content {
+    padding: 7rem 1.25rem 4rem;
+    justify-content: flex-end;
+  }
+  .hero-content h1 {
+    font-size: clamp(2.7rem, 12vw, 4.4rem);
+  }
+  .hero-copy {
+    font-size: 1rem;
+  }
+}
+
+/* ========================================================================= */
+/*  Scroll parallax for imagery (à la Halston / Aircenter)                   */
+/*  Images drift gently within their frame as the page scrolls, so they feel */
+/*  alive. Pure CSS scroll-driven animation, @supports-guarded: unsupported  */
+/*  browsers show a normal static image, and reduced-motion opts out.        */
+/*  Apply to a wrapper INSIDE an overflow-hidden frame (keeps hover effects   */
+/*  on the <img> itself conflict-free).                                       */
+/* ========================================================================= */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .ve-parallax {
+      animation: ve-parallax linear both;
+      animation-timeline: view();
+      animation-range: cover;
+      will-change: transform;
+    }
+  }
+}
+
+@keyframes ve-parallax {
+  from {
+    transform: translateY(-6%) scale(1.16);
+  }
+  to {
+    transform: translateY(6%) scale(1.16);
+  }
+}
+
+/* ========================================================================= */
+/*  Refined palette tokens (warm, luxury, editorial)                         */
+/* ========================================================================= */
+:root {
+  --ve-ink: #161616;
+  --ve-deep-green: #123f2c;
+  --ve-deep-green-2: #0f3525;
+  --ve-gold: #c7a15a;
+  --ve-champagne: #d8c5a1;
+  --ve-ivory: #f7f3eb;
+  --ve-paper: #fbf9f4;
+  --ve-stone: #e9e4db;
+  --ve-silver-warm-1: #d9d6cf;
+  --ve-silver-warm-2: #e7e3db;
+  --ve-silver-warm-3: #f1ede6;
+  --ve-taupe: #b8ab98;
+  --ve-bronze-mist: #b89a78;
+}
+
+/* ========================================================================= */
+/*  Property journey — pinned, full-screen cinematic image sequence          */
+/*  One pinned 100svh stage. Each matched image scales (Ken Burns) and drifts */
+/*  while the next rises and crossfades over it. The base image stays opaque  */
+/*  beneath the others, so the dark stage is never exposed — no empty frame.  */
+/* ========================================================================= */
+.property-journey-scroll {
+  position: relative;
+  height: 360vh;
+  margin: 0;
+  padding: 0;
+  background: #0b0d0c;
+}
+
+.property-journey-sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  background: #0b0d0c;
+}
+
+.property-journey-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.property-journey-image {
+  object-fit: cover;
+}
+
+/* Cinematic edge vignette + foot darkening for HUD legibility. */
+.property-journey-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 12, 10, 0.28) 0%,
+      transparent 24%,
+      transparent 62%,
+      rgba(7, 12, 10, 0.55) 100%
+    ),
+    radial-gradient(
+      130% 90% at 50% 42%,
+      transparent 58%,
+      rgba(7, 12, 10, 0.34) 100%
+    );
+}
+
+.property-journey-grain {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.16) 0, transparent 1px),
+    radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.12) 0, transparent 1px);
+  background-size: 4px 4px;
+  mix-blend-mode: overlay;
+}
+
+/* HUD — index card (bottom-left) + progress segments (bottom, full width). */
+.property-journey-hud {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 7;
+  padding: clamp(1.5rem, 5vw, 4rem) clamp(1.25rem, 6vw, 6rem)
+    clamp(1.75rem, 5vw, 3.5rem);
+  color: #fff;
+  pointer-events: none;
+}
+
+.property-journey-index {
+  --idx-h: clamp(3.2rem, 7vw, 4.6rem);
+  position: relative;
+  height: var(--idx-h);
+  overflow: hidden;
+}
+
+/* A 3-item column that slides; the window above clips it to one row, so only a
+   single label is ever visible — labels can never overlap or "override". */
+.property-journey-index-track {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.property-journey-index-item {
+  height: var(--idx-h);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  white-space: nowrap;
+}
+
+.property-journey-num {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.45);
+}
+
+.property-journey-word {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.5);
+}
+
+.property-journey-progress {
+  margin-top: clamp(1rem, 3vw, 1.75rem);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.property-journey-progress-track {
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.property-journey-progress-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* Reduced-motion fallback — no pin, a calm full-bleed set. */
+.property-journey-static {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(4rem, 8vw, 7rem) clamp(1rem, 5vw, 6rem);
+  background: #0b0d0c;
+}
+
+.property-journey-static-card {
+  position: relative;
+  min-height: 70svh;
+  overflow: hidden;
+  border-radius: 28px;
+}
+
+.property-journey-static-label {
+  position: absolute;
+  left: clamp(1.25rem, 4vw, 2.5rem);
+  bottom: clamp(1.25rem, 4vw, 2.5rem);
+  z-index: 2;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 768px) {
+  .property-journey-scroll {
+    height: 300vh;
+  }
+}
+
+/* The next section begins immediately after the pinned scroll — no dead gap. */
+.property-journey-scroll + section,
+.property-journey-scroll + .ve-section {
+  margin-top: 0;
+}
+
+.ve-page {
+  background: #101815;
+}
+
+/* ========================================================================= */
+/*  Premium surfaces                                                         */
+/* ========================================================================= */
+/* Dark green CTA — solid, rich, no light/washed patch. */
+.ve-dark-cta {
+  margin: 0 auto;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #0b281d 0%, #123f2c 48%, #0f3525 100%);
+  box-shadow: 0 28px 80px rgba(18, 63, 44, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ve-dark-cta::before,
+.ve-dark-cta::after {
+  display: none !important;
+}
+
+/* Soft, premium card surfaces. */
+.property-card,
+.agent-card,
+.ve-card {
+  background: rgba(255, 251, 245, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 22px 60px rgba(31, 34, 29, 0.09);
+}
+
+/* ========================================================================= */
+/*  About gallery — pinned focus-pull image journey (unique to /about)       */
+/*  Distinct from the home journey: images resolve blur → sharp as they       */
+/*  crossfade. The base image stays opaque, so the stage is never exposed.    */
+/* ========================================================================= */
+.about-gallery {
+  position: relative;
+  height: 320vh;
+  margin: 0;
+  padding: 0;
+  background: #0c0e0d;
+}
+
+.about-gallery-sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  background: #0c0e0d;
+}
+
+.about-gallery-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.about-gallery-image {
+  object-fit: cover;
+}
+
+/* Lighter than the home grade — these are bright daytime frames. */
+.about-gallery-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 12, 10, 0.16) 0%,
+    transparent 30%,
+    transparent 64%,
+    rgba(7, 12, 10, 0.5) 100%
+  );
+}
+
+.about-gallery-hud {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 7;
+  padding: clamp(1.5rem, 5vw, 3.5rem) clamp(1.25rem, 6vw, 6rem)
+    clamp(2rem, 5vw, 3.5rem);
+  color: #fff;
+  pointer-events: none;
+}
+
+.about-gallery-caption {
+  --cap-h: clamp(1.4rem, 3vw, 2rem);
+  position: relative;
+  height: var(--cap-h);
+  overflow: hidden;
+}
+
+.about-gallery-caption-track {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.about-gallery-caption-item {
+  height: var(--cap-h);
+  display: flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.about-gallery-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 7;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.about-gallery-progress i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.about-gallery-static {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 5vw, 6rem);
+  background: #0c0e0d;
+}
+
+.about-gallery-static-card {
+  position: relative;
+  min-height: 70svh;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+@media (max-width: 768px) {
+  .about-gallery {
+    height: 270vh;
+  }
+}
+
+/* ========================================================================= */
+/*  Agents page — premium editorial intro + initials photo placeholder       */
+/* ========================================================================= */
+.agents-intro-kicker {
+  margin: 0 0 1rem;
+  color: var(--ve-gold, #c7a15a);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.agents-intro-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.75fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: start;
+}
+
+.agents-intro-grid h1 {
+  margin: 0;
+  max-width: 720px;
+  color: var(--ve-ink, #161616);
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(2.6rem, 5vw, 5rem);
+  line-height: 0.99;
+  letter-spacing: -0.05em;
+}
+
+.agents-intro-copy p {
+  margin: 0;
+  color: rgba(22, 22, 22, 0.68);
+  font-size: clamp(1.02rem, 1.25vw, 1.18rem);
+  line-height: 1.75;
+}
+
+.agents-trust-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.7rem;
+}
+
+.agents-trust-points span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.35rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  color: var(--ve-deep-green, #123f2c);
+  background: rgba(255, 251, 245, 0.72);
+  border: 1px solid rgba(199, 161, 90, 0.22);
+  box-shadow: 0 10px 28px rgba(31, 34, 29, 0.055);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+@media (max-width: 820px) {
+  .agents-intro-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .agents-intro-grid h1 {
+    font-size: clamp(2.4rem, 11vw, 3.6rem);
+  }
+  .agents-trust-points {
+    gap: 0.55rem;
+  }
+  .agents-trust-points span {
+    font-size: 0.78rem;
+  }
+}
+
+/* Elegant initials placeholder for agents without a photo (fills the card's
+   existing 4/5 frame — no large empty card with a tiny icon). */
+.agent-photo-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.82), transparent 16rem),
+    linear-gradient(135deg, rgba(247, 243, 235, 0.92), rgba(219, 211, 197, 0.72));
+}
+
+.agent-photo-placeholder span {
+  color: rgba(18, 63, 44, 0.72);
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 2.4rem;
+  letter-spacing: 0.06em;
+}
+
+/* ========================================================================= */
+/*  Refined scrollbar — a slim, estate-green thumb on pointer devices.        */
+/*  (Touch devices keep the native overlay scrollbar.)                        */
+/* ========================================================================= */
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(31, 68, 52, 0.32) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(31, 68, 52, 0.28);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(31, 68, 52, 0.5);
+    background-clip: padding-box;
+  }
+}
+
+/* ─── Premium map (Leaflet + CARTO Positron) ───────────────────────────── */
+.leaflet-container {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  background: #f3f1ea;
+}
+/* Custom brand pin — transparent frame, soft drop shadow. */
+.vea-pin {
+  background: transparent;
+  border: 0;
+}
+.vea-pin svg {
+  display: block;
+  filter: drop-shadow(0 5px 7px rgba(15, 33, 24, 0.32));
+}
+/* Refined zoom control to match the warm-paper, deep-green palette. */
+.leaflet-control-zoom {
+  border: 1px solid var(--color-line) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(27, 26, 23, 0.1);
+}
+.leaflet-control-zoom a {
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  color: var(--color-ink-soft);
+  background: rgba(255, 255, 255, 0.95);
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  font-weight: 500;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+.leaflet-control-zoom a:last-child {
+  border-bottom: 0;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--color-paper);
+  color: var(--color-brand);
+}
+/* Quiet, legible attribution. */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(4px);
+  border-radius: 8px 0 0 0;
+  padding: 2px 8px !important;
+  font-size: 10px;
+  color: var(--color-muted);
+}
+.leaflet-control-attribution a {
+  color: var(--color-muted);
+}
+.leaflet-control-attribution a:hover {
+  color: var(--color-brand);
 }

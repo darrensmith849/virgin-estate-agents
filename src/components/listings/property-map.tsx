@@ -1,43 +1,52 @@
-"use client";
+import { ExternalLink } from "lucide-react";
 
-import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { MapPin } from "lucide-react";
+import { LeafletMap } from "@/components/listings/leaflet-map";
+import { MapDirections } from "@/components/site/map-directions";
+import { mapSearchUrl } from "@/lib/maps";
 
-const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-
+/*
+ * PropertyMap — a single-location map that pinpoints a place using the clean,
+ * premium CARTO "Positron" basemap (via LeafletMap, no access token), plus
+ * "Get directions" links that open the visitor's own maps app.
+ */
 export function PropertyMap({
   latitude,
   longitude,
   label,
+  directionsAddress,
 }: {
   latitude: number;
   longitude: number;
   label?: string | null;
+  /** When set, "Get directions" navigates to this address rather than coords. */
+  directionsAddress?: string;
 }) {
-  if (!TOKEN) {
-    return (
-      <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-dashed border-line bg-paper-2 text-center">
-        <MapPin size={24} className="text-sand" />
-        <p className="mt-2 text-sm text-muted">{label ?? "Location"}</p>
-        <p className="text-xs text-muted/70">Map appears once Mapbox is configured.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-72 overflow-hidden rounded-xl border border-line">
-      <Map
-        mapboxAccessToken={TOKEN}
-        initialViewState={{ latitude, longitude, zoom: 14 }}
-        mapStyle="mapbox://styles/mapbox/light-v11"
-        style={{ width: "100%", height: "100%" }}
-      >
-        <NavigationControl position="top-right" />
-        <Marker latitude={latitude} longitude={longitude} anchor="bottom">
-          <MapPin size={32} className="fill-brand text-brand drop-shadow" />
-        </Marker>
-      </Map>
+    <div>
+      <div className="overflow-hidden rounded-2xl border border-line shadow-sm">
+        <LeafletMap
+          latitude={latitude}
+          longitude={longitude}
+          label={label}
+          className="h-72 w-full sm:h-80"
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <MapDirections
+          latitude={latitude}
+          longitude={longitude}
+          address={directionsAddress}
+        />
+        <a
+          href={mapSearchUrl(latitude, longitude)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink"
+        >
+          View larger map
+          <ExternalLink size={12} />
+        </a>
+      </div>
     </div>
   );
 }

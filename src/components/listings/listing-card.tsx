@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { BedDouble, Bath, Maximize, MapPin, ImageOff } from "lucide-react";
+import { BedDouble, Bath, Maximize, MapPin, ImageOff, ArrowRight } from "lucide-react";
 
 import type { Listing } from "@/db/schema";
 import { StatusBadge } from "./status-badge";
@@ -43,18 +43,23 @@ export function ListingCard({
   return (
     <Link
       href={`/listings/${listing.slug}`}
-      className={cn("group block", className)}
+      className={cn(
+        "group block transition-transform duration-300 ease-out hover:-translate-y-1",
+        className,
+      )}
     >
-      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-paper-2">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-paper-2 shadow-sm ring-1 ring-black/[0.04] transition-shadow duration-300 group-hover:shadow-xl">
         {cover ? (
-          <Image
-            src={cover.url}
-            alt={cover.alt ?? listing.title}
-            fill
-            priority={priority}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-          />
+          <div className="ve-parallax absolute inset-0">
+            <Image
+              src={cover.url}
+              alt={cover.alt ?? listing.title}
+              fill
+              priority={priority}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+            />
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-muted">
             <ImageOff size={28} />
@@ -68,11 +73,25 @@ export function ListingCard({
             />
           </div>
         )}
+
+        {/* Hover affordance — a soft scrim and a quiet prompt rise into view. */}
+        {cover && (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100" />
+            <div className="pointer-events-none absolute bottom-3 left-3.5 flex translate-y-1.5 items-center gap-1.5 text-sm font-medium text-white opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
+              View property
+              <ArrowRight
+                size={14}
+                className="transition-transform duration-300 ease-out group-hover:translate-x-0.5"
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-3.5">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-lg font-medium text-ink">
+          <p className="text-lg font-medium tabular-nums text-ink">
             {formatPrice(listing.price, {
               kind: listing.kind,
               period: listing.rentPeriod,

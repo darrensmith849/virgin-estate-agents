@@ -10,7 +10,8 @@ import {
   Home,
   MapPin,
   Check,
-  ChevronLeft,
+  ChevronRight,
+  ArrowRight,
 } from "lucide-react";
 
 import { getListingBySlug, getSimilarListings } from "@/lib/data/listings";
@@ -23,7 +24,9 @@ import { EnquiryForm } from "@/components/listings/enquiry-form";
 import { ShareButton } from "@/components/listings/share-button";
 import { ViewTracker } from "@/components/listings/view-tracker";
 import { ListingCard } from "@/components/listings/listing-card";
+import { BondCalculator } from "@/components/site/bond-calculator";
 import { PROPERTY_TYPES, SITE } from "@/lib/constants";
+import { slugifySuburb, suburbBlurb } from "@/lib/suburbs";
 import { formatArea, formatPrice } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -105,20 +108,88 @@ export default async function ListingDetailPage({
     },
   };
 
+  // Breadcrumb trail (+ schema): Home › Listings › Suburb › Title
+  const suburbSlug = listing.suburb ? slugifySuburb(listing.suburb) : null;
+  const crumbs = [
+    { name: "Home", href: "/" },
+    { name: "Listings", href: "/listings" },
+    ...(listing.suburb && suburbSlug
+      ? [{ name: listing.suburb, href: `/guides/${suburbSlug}` }]
+      : []),
+    { name: listing.title, href: `/listings/${listing.slug}` },
+  ];
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((c, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: c.name,
+      item: `${SITE.url}${c.href}`,
+    })),
+  };
+
+  // At-a-glance key facts (factual data only).
+  const statusLabels: Record<string, string> = {
+    for_sale: "For sale",
+    under_offer: "Under offer",
+    sold: "Sold",
+    draft: "Draft",
+  };
+  const keyFacts = [
+    { label: "Reference", value: `VE-${listing.id.slice(0, 6).toUpperCase()}` },
+    listing.publishedAt
+      ? {
+          label: "Listed",
+          value: new Date(listing.publishedAt).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+        }
+      : null,
+    { label: "Status", value: statusLabels[listing.status] ?? listing.status },
+    listing.kind === "sale" && listing.floorSizeSqm
+      ? {
+          label: "Price per m²",
+          value: `$${Math.round(listing.price / listing.floorSizeSqm).toLocaleString("en-US")}`,
+        }
+      : null,
+  ].filter(Boolean) as { label: string; value: string }[];
+
   return (
     <Container className="py-8 sm:py-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
       <ViewTracker listingId={listing.id} path={`/listings/${listing.slug}`} />
 
-      <Link
-        href="/listings"
-        className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
-      >
-        <ChevronLeft size={15} /> All listings
-      </Link>
+      <nav aria-label="Breadcrumb" className="mb-5">
+        <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted">
+          {crumbs.map((c, i) => {
+            const last = i === crumbs.length - 1;
+            return (
+              <li key={c.href} className="flex items-center gap-1.5">
+                {i > 0 && (
+                  <ChevronRight size={13} className="shrink-0 text-muted/50" />
+                )}
+                {last ? (
+                  <span className="line-clamp-1 text-ink-soft">{c.name}</span>
+                ) : (
+                  <Link href={c.href} className="hover:text-ink">
+                    {c.name}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
 
       <div className="grid gap-10 lg:grid-cols-3">
         {/* Main column */}
@@ -164,6 +235,16 @@ export default async function ListingDetailPage({
             ))}
           </div>
 
+          {/* Key facts — at a glance */}
+          <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
+            {keyFacts.map((f) => (
+              <div key={f.label} className="bg-card p-4">
+                <dt className="text-xs text-muted">{f.label}</dt>
+                <dd className="mt-1 text-sm font-medium text-ink">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+
           {/* Description */}
           {listing.description && (
             <div className="mt-10">
@@ -203,6 +284,30 @@ export default async function ListingDetailPage({
               />
             </div>
           )}
+
+          {/* About the area */}
+          {listing.suburb && (
+            <div className="mt-10">
+              <h2 className="text-2xl">About {listing.suburb}</h2>
+              <p className="mt-4 leading-relaxed text-ink-soft">
+                {suburbBlurb(listing.suburb)}
+              </p>
+              {suburbSlug && (
+                <Link
+                  href={`/guides/${suburbSlug}`}
+                  className="group mt-4 inline-flex items-center gap-1.5 text-sm text-brand hover:text-brand-700"
+                >
+                  <span className="link-underline">
+                    Explore the {listing.suburb} guide
+                  </span>
+                  <ArrowRight
+                    size={14}
+                    className="transition-transform duration-300 ease-out group-hover:translate-x-1"
+                  />
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -221,6 +326,9 @@ export default async function ListingDetailPage({
               </p>
               <EnquiryForm listingId={listing.id} listingTitle={listing.title} />
             </div>
+            {listing.kind === "sale" && listing.price > 0 && (
+              <BondCalculator price={listing.price} />
+            )}
           </div>
         </aside>
       </div>

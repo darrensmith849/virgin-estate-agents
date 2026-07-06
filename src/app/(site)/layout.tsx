@@ -1,5 +1,7 @@
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
+import { WhatsappFab } from "@/components/site/whatsapp-fab";
+import { AiAssistant } from "@/components/site/ai-assistant";
 
 export default function SiteLayout({
   children,
@@ -15,10 +17,12 @@ export default function SiteLayout({
         Skip to content
       </a>
       <SiteHeader />
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="ve-content-shell flex-1">
         {children}
+        <SiteFooter />
       </main>
-      <SiteFooter />
+      <WhatsappFab />
+      <AiAssistant />
     </>
   );
 }

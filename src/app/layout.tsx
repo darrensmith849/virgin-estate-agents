@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -30,8 +30,55 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_ZW",
     siteName: SITE.name,
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 675,
+        alt: `${SITE.name} — premium property in Harare`,
+      },
+    ],
   },
-  twitter: { card: "summary_large_image" },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE.name,
+    description: SITE.description,
+    images: ["/og-image.jpg"],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#101815",
+  colorScheme: "light",
+};
+
+// LocalBusiness / RealEstateAgent structured data (site-wide).
+const orgSchema = {
+  "@context": "https://schema.org",
+  "@type": "RealEstateAgent",
+  name: SITE.name,
+  description: SITE.description,
+  url: SITE.url,
+  image: `${SITE.url}/og-image.jpg`,
+  logo: `${SITE.url}/og-image.jpg`,
+  telephone: SITE.whatsapp,
+  email: SITE.email,
+  priceRange: "$$$",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "4 Fleetwood Road",
+    addressLocality: SITE.city,
+    addressCountry: "ZW",
+  },
+  areaServed: { "@type": "City", name: `${SITE.city}, ${SITE.country}` },
+  knowsAbout: [
+    "Borrowdale",
+    "Highlands",
+    "Mount Pleasant",
+    "Avondale",
+    "Chisipite",
+    "Glen Lorne",
+  ],
 };
 
 export default function RootLayout({
@@ -45,6 +92,10 @@ export default function RootLayout({
       className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        />
         {children}
         {process.env.NEXT_PUBLIC_CF_BEACON_TOKEN && (
           <Script

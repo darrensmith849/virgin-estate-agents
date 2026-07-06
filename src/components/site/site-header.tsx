@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -42,22 +43,48 @@ export function SiteHeader() {
       )}
     >
       <Container className="flex h-18 items-center justify-between py-4">
-        <Link href="/" className="group flex items-baseline gap-2">
-          <span
-            className={cn(
-              "font-serif text-xl tracking-tight transition-colors",
-              overHero ? "text-white" : "text-ink",
-            )}
-          >
-            Virgin Estate
+        <Link href="/" className="group flex items-center gap-2.5">
+          <span className="relative h-11 w-[34px] shrink-0">
+            <Image
+              src="/images/virgin-tree-white.png"
+              alt=""
+              fill
+              priority
+              sizes="34px"
+              className={cn(
+                "object-contain transition-opacity duration-300",
+                overHero ? "opacity-100" : "opacity-0",
+              )}
+            />
+            <Image
+              src="/images/virgin-tree-green.png"
+              alt="Virgin Estate Agents"
+              fill
+              priority
+              sizes="34px"
+              className={cn(
+                "object-contain transition-opacity duration-300",
+                overHero ? "opacity-0" : "opacity-100",
+              )}
+            />
           </span>
-          <span
-            className={cn(
-              "text-[0.6rem] font-medium uppercase tracking-[0.28em] transition-colors",
-              overHero ? "text-white/70" : "text-sand",
-            )}
-          >
-            Agents
+          <span className="flex flex-col leading-none">
+            <span
+              className={cn(
+                "font-serif text-base leading-tight tracking-tight transition-colors sm:text-lg",
+                overHero ? "text-white" : "text-ink",
+              )}
+            >
+              Virgin Estate Agents
+            </span>
+            <span
+              className={cn(
+                "mt-1 text-[0.5rem] font-medium uppercase tracking-[0.2em] transition-colors sm:text-[0.55rem] sm:tracking-[0.24em]",
+                overHero ? "text-white/70" : "text-sand",
+              )}
+            >
+              &amp; Property Consultants
+            </span>
           </span>
         </Link>
 
@@ -70,8 +97,9 @@ export function SiteHeader() {
               <Link
                 key={link.href}
                 href={link.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "text-sm transition-colors",
+                  "group relative text-sm transition-colors",
                   overHero
                     ? "text-white/85 hover:text-white"
                     : active
@@ -80,6 +108,12 @@ export function SiteHeader() {
                 )}
               >
                 {link.label}
+                <span
+                  className={cn(
+                    "absolute -bottom-1.5 left-0 h-px bg-current transition-all duration-300 ease-out",
+                    active ? "w-full opacity-100" : "w-0 opacity-70 group-hover:w-full",
+                  )}
+                />
               </Link>
             );
           })}

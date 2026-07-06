@@ -6,11 +6,17 @@ export const SITE = {
     "Find your next home in Harare. Curated houses, apartments, stands and commercial property across Zimbabwe's finest suburbs.",
   city: "Harare",
   country: "Zimbabwe",
-  // Placeholder contact details — replace with the client's real details.
-  phone: "+263 24 2000 000",
-  whatsapp: "+263 77 000 0000",
-  email: "info@virginestateagents.co.zw",
-  address: "Borrowdale, Harare, Zimbabwe",
+  // The agency's contact line is Boyd Littleford's mobile (same number for calls
+  // and WhatsApp); email goes to Boyd directly.
+  phone: "+263 77 547 2523",
+  whatsapp: "+263 77 547 2523",
+  // The WhatsApp/mobile line is Boyd Littleford's — named on the footer & contact.
+  contactName: "Boyd Littleford",
+  email: "boyd@virtrust.com",
+  address: "4 Fleetwood Rd, Harare, Zimbabwe",
+  hours: "Mon–Fri 8:00–17:00 · Sat 9:00–13:00",
+  // Placeholder credential — confirm/replace with the agency's real registration.
+  registration: "Registered estate agents — Harare, Zimbabwe",
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   social: {
     facebook: "",

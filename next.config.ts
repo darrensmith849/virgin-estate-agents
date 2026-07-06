@@ -3,6 +3,9 @@ import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
   images: {
+    // Allow crisper rendering for the cinematic hero / journey imagery while
+    // keeping the lighter 75 default for everything else.
+    qualities: [75, 90],
     // Property photos are served from R2 / Cloudflare Images in production, and
     // demo imagery from Unsplash while seeding. Tighten these to the client's
     // own R2 public domain before launch.

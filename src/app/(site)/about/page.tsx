@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
 import { Container } from "@/components/ui/container";
 import { buttonVariants } from "@/components/ui/button";
+import AboutGalleryScroll from "@/components/AboutGalleryScroll";
+import { StatsBand } from "@/components/site/stats-band";
 import { SITE } from "@/lib/constants";
 
 export const metadata: Metadata = {
@@ -11,13 +12,10 @@ export const metadata: Metadata = {
   description: `About ${SITE.name} — a considered approach to property in Harare.`,
 };
 
-const IMAGE =
-  "https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1600&q=80";
-
 export default function AboutPage() {
   return (
     <>
-      <Container className="py-14 sm:py-20">
+      <Container className="reveal py-14 sm:py-20">
         <div className="max-w-3xl">
           <p className="text-xs font-medium uppercase tracking-[0.3em] text-sand">
             About us
@@ -34,11 +32,9 @@ export default function AboutPage() {
         </div>
       </Container>
 
-      <div className="relative aspect-[21/9] w-full">
-        <Image src={IMAGE} alt="Harare property" fill sizes="100vw" className="object-cover" />
-      </div>
+      <AboutGalleryScroll />
 
-      <Container className="py-16 sm:py-24">
+      <Container className="reveal py-16 sm:py-24">
         <div className="grid gap-12 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <h2 className="text-2xl sm:text-3xl">What we stand for</h2>
@@ -76,6 +72,8 @@ export default function AboutPage() {
           </div>
         </div>
       </Container>
+
+      <StatsBand heading="Virgin Estate by the numbers" />
     </>
   );
 }
