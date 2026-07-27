@@ -19,22 +19,46 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No files provided" }, { status: 400 });
   }
 
-  const storage = await getStorage();
-  const uploaded: { key: string; url: string; alt: string }[] = [];
-
+  // Validate sizes up-front so we fail before touching storage.
   for (const file of files) {
-    if (!file.type.startsWith("image/")) continue;
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
         { error: `"${file.name}" is larger than 8 MB.` },
         { status: 413 },
       );
     }
-    const buf = await file.arrayBuffer();
-    const key = storageKey(prefix, file.name);
-    const res = await storage.put(key, buf, file.type || "image/jpeg");
-    uploaded.push({ ...res, alt: file.name.replace(/\.[^.]+$/, "") });
   }
 
-  return NextResponse.json({ files: uploaded });
+  try {
+    const storage = await getStorage();
+    const uploaded: { key: string; url: string; alt: string }[] = [];
+
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) continue;
+      const buf = await file.arrayBuffer();
+      const key = storageKey(prefix, file.name);
+      const res = await storage.put(key, buf, file.type || "image/jpeg");
+      uploaded.push({ ...res, alt: file.name.replace(/\.[^.]+$/, "") });
+    }
+
+    if (uploaded.length === 0) {
+      return NextResponse.json(
+        { error: "No valid image files were provided." },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json({ files: uploaded });
+  } catch (err) {
+    // Always return JSON — an unhandled throw here produces an empty body,
+    // which the client sees as "Unexpected end of JSON input".
+    console.error("[upload] storage put failed:", err);
+    return NextResponse.json(
+      {
+        error:
+          "Image storage is not available. Photos can't be saved until the media bucket (R2) is configured.",
+      },
+      { status: 500 },
+    );
+  }
 }

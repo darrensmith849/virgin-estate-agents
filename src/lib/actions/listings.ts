@@ -12,7 +12,13 @@ import { listingSchema } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 
 export type ListingFormState =
-  | { ok?: boolean; error?: string; fieldErrors?: Record<string, string[]> }
+  | {
+      ok?: boolean;
+      error?: string;
+      fieldErrors?: Record<string, string[]>;
+      /** Set by createListing so the form can reveal the photo uploader inline. */
+      id?: string;
+    }
   | undefined;
 
 function parseListingForm(formData: FormData) {
@@ -64,7 +70,10 @@ export async function createListing(
 
   revalidatePath("/admin/listings");
   revalidatePath("/"); // home featured grid is static
-  redirect(`/admin/listings/${created.id}/edit?created=1`);
+
+  // Return the id (instead of redirecting to a separate edit page) so photos
+  // can be added inline on the same New listing page.
+  return { ok: true, id: created.id };
 }
 
 export async function updateListing(

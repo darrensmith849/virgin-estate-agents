@@ -58,6 +58,10 @@ export async function createEnquiry(
     listingUrl: listing ? `${SITE.url}/listings/${listing.slug}` : undefined,
   });
 
+  // Surface the new enquiry (and its unread badge) in the admin area promptly.
+  revalidatePath("/admin/enquiries");
+  revalidatePath("/admin");
+
   return { ok: true };
 }
 

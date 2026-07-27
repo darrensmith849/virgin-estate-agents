@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Save } from "lucide-react";
 
 import type { ListingFormState } from "@/lib/actions/listings";
 import type { Agent, Listing } from "@/db/schema";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea, Label } from "@/components/ui/form";
+import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import {
   COMMON_FEATURES,
   HARARE_SUBURBS,
@@ -20,6 +20,8 @@ type Props = {
   agents: Pick<Agent, "id" | "name">[];
   listing?: Listing;
   submitLabel?: string;
+  /** Fires once with the new id after a successful create (see NewListingFlow). */
+  onCreated?: (id: string) => void;
 };
 
 function Section({
@@ -40,13 +42,31 @@ function Section({
   );
 }
 
-export function ListingForm({ action, agents, listing, submitLabel = "Save listing" }: Props) {
+export function ListingForm({
+  action,
+  agents,
+  listing,
+  submitLabel = "Save listing",
+  onCreated,
+}: Props) {
   const [state, formAction, pending] = useActionState<ListingFormState, FormData>(
     action,
     undefined,
   );
   const fe = state?.fieldErrors ?? {};
   const features = (listing?.features as string[] | undefined) ?? [];
+  const [kind, setKind] = useState<string>(listing?.kind ?? "sale");
+  const isRent = kind === "rent";
+
+  // On a successful create the action returns the new id; hand it to the parent
+  // once so it can reveal the photo uploader on the same page.
+  const notifiedId = useRef<string | null>(null);
+  useEffect(() => {
+    if (state?.id && notifiedId.current !== state.id) {
+      notifiedId.current = state.id;
+      onCreated?.(state.id);
+    }
+  }, [state?.id, onCreated]);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -83,7 +103,12 @@ export function ListingForm({ action, agents, listing, submitLabel = "Save listi
               </Select>
             </Field>
             <Field label="Listing type" htmlFor="kind">
-              <Select id="kind" name="kind" defaultValue={listing?.kind ?? "sale"}>
+              <Select
+                id="kind"
+                name="kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value)}
+              >
                 {LISTING_KINDS.map((k) => (
                   <option key={k.value} value={k.value}>
                     {k.label}
@@ -120,10 +145,10 @@ export function ListingForm({ action, agents, listing, submitLabel = "Save listi
       <Section title="Pricing">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="Price (USD)"
+            label={isRent ? "Rent (USD)" : "Price (USD)"}
             htmlFor="price"
             error={fe.price?.[0]}
-            hint="Whole dollars, e.g. 485000"
+            hint={isRent ? "Whole dollars, e.g. 1200" : "Whole dollars, e.g. 485000"}
           >
             <Input
               id="price"
@@ -133,16 +158,22 @@ export function ListingForm({ action, agents, listing, submitLabel = "Save listi
               defaultValue={listing?.price ?? 0}
             />
           </Field>
-          <Field label="Rent period" htmlFor="rentPeriod" hint="Used for rentals only">
-            <Select
-              id="rentPeriod"
-              name="rentPeriod"
-              defaultValue={listing?.rentPeriod ?? "month"}
-            >
-              <option value="month">per month</option>
-              <option value="week">per week</option>
-            </Select>
-          </Field>
+          {isRent ? (
+            <Field label="Rent period" htmlFor="rentPeriod" hint="How the rent is quoted">
+              <Select
+                id="rentPeriod"
+                name="rentPeriod"
+                defaultValue={listing?.rentPeriod ?? "month"}
+              >
+                <option value="month">per month</option>
+                <option value="week">per week</option>
+              </Select>
+            </Field>
+          ) : (
+            // For-sale listings have no rent period; keep the value out of the
+            // submission entirely (formatPrice ignores it for sales anyway).
+            <input type="hidden" name="rentPeriod" value="" />
+          )}
         </div>
       </Section>
 

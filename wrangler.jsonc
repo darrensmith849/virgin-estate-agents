@@ -25,12 +25,13 @@
   "vars": {
     "NEXT_PUBLIC_SITE_URL": "https://virginestateagentsandpropertyconsultants.co.zw",
     "OPENAI_BASE_URL": "https://api.groq.com/openai/v1",
-    "OPENAI_MODEL": "llama-3.3-70b-versatile"
-  }
-  // R2 bucket for property images — uncomment and create the bucket before
-  // running `wrangler dev` / deploy:
-  //
-  // "r2_buckets": [
-  //   { "binding": "MEDIA", "bucket_name": "virgin-estate-media" }
-  // ]
+    "OPENAI_MODEL": "llama-3.3-70b-versatile",
+    // Public base URL of the R2 bucket's managed r2.dev domain. Swap for a
+    // custom domain later if desired (and add it to next.config remotePatterns).
+    "R2_PUBLIC_URL": "https://pub-f964720a743a4f18ac7bb46dadac3449.r2.dev"
+  },
+  // R2 bucket for property images. Uploads (/admin/api/upload) write here.
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "virgin-estate-media" }
+  ]
 }
