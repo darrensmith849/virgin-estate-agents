@@ -76,6 +76,31 @@ export async function createListing(
   return { ok: true, id: created.id };
 }
 
+/** Slug base for a placeholder draft created before the form is filled in. */
+const DRAFT_SLUG_BASE = "untitled-listing";
+
+/**
+ * Creates a blank draft and returns its id. Used by the New listing page so the
+ * photo uploader can attach images the moment the user adds them — before the
+ * details form is submitted. The real title/slug are set on the first save.
+ */
+export async function createDraftListing(): Promise<{ id?: string; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authorised." };
+
+  const [created] = await db
+    .insert(listings)
+    .values({
+      title: "Untitled listing",
+      slug: uniqueSlug(DRAFT_SLUG_BASE),
+      status: "draft",
+    })
+    .returning({ id: listings.id });
+
+  revalidatePath("/admin/listings");
+  return { id: created.id };
+}
+
 export async function updateListing(
   id: string,
   _prev: ListingFormState,
@@ -91,7 +116,7 @@ export async function updateListing(
 
   const existing = await db.query.listings.findFirst({
     where: eq(listings.id, id),
-    columns: { publishedAt: true },
+    columns: { publishedAt: true, slug: true },
   });
 
   const data = parsed.data;
@@ -100,9 +125,15 @@ export async function updateListing(
       ? null
       : (existing?.publishedAt ?? new Date());
 
+  // A placeholder draft (created before the form was filled) still carries an
+  // "untitled-listing-…" slug — regenerate it from the real title on first save.
+  const slug = existing?.slug?.startsWith(`${DRAFT_SLUG_BASE}-`)
+    ? { slug: uniqueSlug(data.title) }
+    : {};
+
   await db
     .update(listings)
-    .set({ ...data, publishedAt, updatedAt: new Date() })
+    .set({ ...data, ...slug, publishedAt, updatedAt: new Date() })
     .where(eq(listings.id, id));
 
   revalidatePath("/admin/listings");

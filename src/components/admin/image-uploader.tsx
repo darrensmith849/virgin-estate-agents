@@ -16,14 +16,19 @@ type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 
 export function ImageUploader({
   listingId,
+  ensureListingId,
   initialImages,
 }: {
-  listingId: string;
+  /** Existing listing id (edit page). May be null on a not-yet-saved listing. */
+  listingId?: string | null;
+  /** Lazily creates the listing on first upload and returns its id (new page). */
+  ensureListingId?: () => Promise<string>;
   initialImages: Img[];
 }) {
   const [images, setImages] = useState<Img[]>(initialImages);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentId, setCurrentId] = useState<string | null>(listingId ?? null);
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,15 +38,23 @@ export function ImageUploader({
     setError(null);
     setUploading(true);
     try {
+      // Ensure a listing exists to attach to (creates a draft on the new page).
+      let id = currentId;
+      if (!id) {
+        if (!ensureListingId) throw new Error("No listing to attach photos to.");
+        id = await ensureListingId();
+        setCurrentId(id);
+      }
+
       const fd = new FormData();
       Array.from(files).forEach((f) => fd.append("files", f));
-      fd.append("prefix", `listings/${listingId}`);
+      fd.append("prefix", `listings/${id}`);
 
       const res = await fetch("/admin/api/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      const created = await addListingImages(listingId, data.files);
+      const created = await addListingImages(id, data.files);
       setImages((prev) => [
         ...prev,
         ...created.map((c) => ({ id: c.id, url: c.url, alt: c.alt, isCover: c.isCover })),
@@ -69,23 +82,25 @@ export function ImageUploader({
   }
 
   function handleCover(id: string) {
+    if (!currentId) return;
     setImages((prev) => prev.map((i) => ({ ...i, isCover: i.id === id })));
     startTransition(() => {
-      setCoverImage(listingId, id);
+      setCoverImage(currentId, id);
     });
   }
 
   function handleDrop(targetIndex: number) {
     const from = dragIndex.current;
     dragIndex.current = null;
-    if (from === null || from === targetIndex) return;
+    if (from === null || from === targetIndex || !currentId) return;
+    const id = currentId;
     setImages((prev) => {
       const next = [...prev];
       const [moved] = next.splice(from, 1);
       next.splice(targetIndex, 0, moved);
       startTransition(() => {
         reorderListingImages(
-          listingId,
+          id,
           next.map((i) => i.id),
         );
       });
