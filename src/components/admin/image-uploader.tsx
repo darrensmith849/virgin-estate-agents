@@ -32,18 +32,42 @@ export function ImageUploader({
 }) {
   const [images, setImages] = useState<Img[]>(initialImages);
   const [videos, setVideos] = useState<Vid[]>(initialVideos);
-  const [uploading, setUploading] = useState<"image" | "video" | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(listingId ?? null);
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFiles(files: FileList | null, mediaType: "image" | "video") {
+  async function uploadGroup(
+    id: string,
+    files: File[],
+    mediaType: "image" | "video",
+  ): Promise<{ key: string; url: string; alt: string }[]> {
+    const fd = new FormData();
+    files.forEach((f) => fd.append("files", f));
+    fd.append("prefix", `listings/${id}`);
+    fd.append("mediaType", mediaType);
+    const res = await fetch("/admin/api/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    return data.files;
+  }
+
+  // One picker for both — photos and videos are sorted by file type and each
+  // group is uploaded separately (the endpoint validates one type per request).
+  async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
+    const all = Array.from(files);
+    const imageFiles = all.filter((f) => f.type.startsWith("image/"));
+    const videoFiles = all.filter((f) => f.type.startsWith("video/"));
+    if (imageFiles.length === 0 && videoFiles.length === 0) {
+      setError("Please choose image or video files.");
+      return;
+    }
+
     setError(null);
-    setUploading(mediaType);
+    setUploading(true);
     try {
       // Ensure a listing exists to attach to (creates a draft on the new page).
       let id = currentId;
@@ -53,40 +77,30 @@ export function ImageUploader({
         setCurrentId(id);
       }
 
-      const fd = new FormData();
-      Array.from(files).forEach((f) => fd.append("files", f));
-      fd.append("prefix", `listings/${id}`);
-      fd.append("mediaType", mediaType);
-
-      const res = await fetch("/admin/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-
-      if (mediaType === "image") {
-        const created = await addListingImages(id, data.files);
+      if (imageFiles.length) {
+        const created = await uploadGroup(id, imageFiles, "image");
+        const added = await addListingImages(id, created);
         setImages((prev) => [
           ...prev,
-          ...created.map((c) => ({ id: c.id, url: c.url, alt: c.alt, isCover: c.isCover })),
+          ...added.map((c) => ({ id: c.id, url: c.url, alt: c.alt, isCover: c.isCover })),
         ]);
-      } else {
-        const created = await addListingVideos(
+      }
+      if (videoFiles.length) {
+        const created = await uploadGroup(id, videoFiles, "video");
+        const added = await addListingVideos(
           id,
-          data.files.map((file: { key: string; url: string; alt: string }) => ({
-            ...file,
-            title: file.alt,
-          })),
+          created.map((file) => ({ ...file, title: file.alt })),
         );
         setVideos((prev) => [
           ...prev,
-          ...created.map((video) => ({ id: video.id, url: video.url, title: video.title })),
+          ...added.map((video) => ({ id: video.id, url: video.url, title: video.title })),
         ]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
-      setUploading(null);
-      const input = mediaType === "image" ? imageInputRef.current : videoInputRef.current;
-      if (input) input.value = "";
+      setUploading(false);
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
     }
   }
 
@@ -157,34 +171,19 @@ export function ImageUploader({
             star a photo to move it to the front. Videos appear on the listing page.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={uploading !== null}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-paper-2 disabled:opacity-60"
-          >
-            {uploading === "image" ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <UploadCloud size={15} />
-            )}
-            {uploading === "image" ? "Uploading…" : "Add photos"}
-          </button>
-          <button
-            type="button"
-            onClick={() => videoInputRef.current?.click()}
-            disabled={uploading !== null}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-paper-2 disabled:opacity-60"
-          >
-            {uploading === "video" ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <UploadCloud size={15} />
-            )}
-            {uploading === "video" ? "Uploading…" : "Add videos"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => mediaInputRef.current?.click()}
+          disabled={uploading}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-paper-2 disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <UploadCloud size={15} />
+          )}
+          {uploading ? "Uploading…" : "Add photos & videos"}
+        </button>
       </div>
 
       {error && (
@@ -195,7 +194,7 @@ export function ImageUploader({
 
       {images.length === 0 && videos.length === 0 ? (
         <p className="mt-5 rounded-lg border border-dashed border-line px-6 py-10 text-center text-sm text-muted">
-          No photos or videos yet — use the “Add photos” or “Add videos” buttons above.
+          No photos or videos yet — use the “Add photos &amp; videos” button above.
         </p>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -283,20 +282,12 @@ export function ImageUploader({
       )}
 
       <input
-        ref={imageInputRef}
+        ref={mediaInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple
         hidden
-        onChange={(e) => handleFiles(e.target.files, "image")}
-      />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/*"
-        multiple
-        hidden
-        onChange={(e) => handleFiles(e.target.files, "video")}
+        onChange={(e) => handleFiles(e.target.files)}
       />
     </div>
   );
