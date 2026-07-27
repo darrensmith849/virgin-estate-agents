@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { listingImages, listings } from "@/db/schema";
@@ -252,14 +252,21 @@ export async function setCoverImage(
   const user = await getCurrentUser();
   if (!user) return;
 
-  await db
-    .update(listingImages)
-    .set({ isCover: false })
-    .where(and(eq(listingImages.listingId, listingId), ne(listingImages.id, imageId)));
-  await db
-    .update(listingImages)
-    .set({ isCover: true })
-    .where(eq(listingImages.id, imageId));
+  // Cover = first photo, so making an image the cover moves it to the front.
+  const imgs = await db.query.listingImages.findMany({
+    where: eq(listingImages.listingId, listingId),
+    orderBy: (t, { asc }) => [asc(t.sortOrder)],
+    columns: { id: true },
+  });
+  const order = [imageId, ...imgs.filter((i) => i.id !== imageId).map((i) => i.id)];
+  await Promise.all(
+    order.map((id, index) =>
+      db
+        .update(listingImages)
+        .set({ sortOrder: index, isCover: index === 0 })
+        .where(eq(listingImages.id, id)),
+    ),
+  );
 
   revalidatePath(`/admin/listings/${listingId}/edit`);
   revalidatePath("/");
@@ -273,11 +280,12 @@ export async function reorderListingImages(
   const user = await getCurrentUser();
   if (!user) return;
 
+  // The first photo is always the cover, so reordering re-picks the cover too.
   await Promise.all(
     orderedIds.map((id, index) =>
       db
         .update(listingImages)
-        .set({ sortOrder: index })
+        .set({ sortOrder: index, isCover: index === 0 })
         .where(eq(listingImages.id, id)),
     ),
   );

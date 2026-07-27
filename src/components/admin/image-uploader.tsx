@@ -83,9 +83,16 @@ export function ImageUploader({
 
   function handleCover(id: string) {
     if (!currentId) return;
-    setImages((prev) => prev.map((i) => ({ ...i, isCover: i.id === id })));
+    const listing = currentId;
+    // Cover = first photo, so making a photo the cover moves it to the front.
+    setImages((prev) => {
+      const chosen = prev.find((i) => i.id === id);
+      if (!chosen) return prev;
+      const rest = prev.filter((i) => i.id !== id);
+      return [chosen, ...rest].map((img, idx) => ({ ...img, isCover: idx === 0 }));
+    });
     startTransition(() => {
-      setCoverImage(currentId, id);
+      setCoverImage(listing, id);
     });
   }
 
@@ -98,13 +105,15 @@ export function ImageUploader({
       const next = [...prev];
       const [moved] = next.splice(from, 1);
       next.splice(targetIndex, 0, moved);
+      // The first photo is the cover — keep the badge in sync with the order.
+      const reordered = next.map((img, idx) => ({ ...img, isCover: idx === 0 }));
       startTransition(() => {
         reorderListingImages(
           id,
-          next.map((i) => i.id),
+          reordered.map((i) => i.id),
         );
       });
-      return next;
+      return reordered;
     });
   }
 
@@ -114,7 +123,8 @@ export function ImageUploader({
         <div>
           <h2 className="text-lg">Photos</h2>
           <p className="mt-1 text-sm text-muted">
-            Drag to reorder · the starred image is the cover.
+            The first photo is the cover shown on the site · drag to reorder, or
+            star a photo to move it to the front.
           </p>
         </div>
       </div>
