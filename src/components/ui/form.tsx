@@ -22,8 +22,18 @@ const fieldBase =
 export const Input = React.forwardRef<
   HTMLInputElement,
   React.InputHTMLAttributes<HTMLInputElement>
->(({ className, ...props }, ref) => (
-  <input ref={ref} className={cn(fieldBase, className)} {...props} />
+>(({ className, onWheel, ...props }, ref) => (
+  <input
+    ref={ref}
+    // Stop the mouse wheel from silently changing a focused number field
+    // (scrolling the page would otherwise turn 420000 into 419999, etc.).
+    onWheel={(e) => {
+      if (e.currentTarget.type === "number") e.currentTarget.blur();
+      onWheel?.(e);
+    }}
+    className={cn(fieldBase, className)}
+    {...props}
+  />
 ));
 Input.displayName = "Input";
 

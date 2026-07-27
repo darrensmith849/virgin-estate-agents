@@ -209,6 +209,7 @@ export async function addListingImages(
 
   revalidatePath(`/admin/listings/${listingId}/edit`);
   revalidatePath("/");
+  revalidatePath("/listings");
   return inserted;
 }
 
@@ -240,6 +241,8 @@ export async function deleteListingImage(imageId: string): Promise<void> {
   }
 
   revalidatePath(`/admin/listings/${img.listingId}/edit`);
+  revalidatePath("/");
+  revalidatePath("/listings");
 }
 
 export async function setCoverImage(
@@ -260,6 +263,7 @@ export async function setCoverImage(
 
   revalidatePath(`/admin/listings/${listingId}/edit`);
   revalidatePath("/");
+  revalidatePath("/listings");
 }
 
 export async function reorderListingImages(
@@ -279,4 +283,6 @@ export async function reorderListingImages(
   );
 
   revalidatePath(`/admin/listings/${listingId}/edit`);
+  revalidatePath("/");
+  revalidatePath("/listings");
 }
