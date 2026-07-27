@@ -12,13 +12,7 @@ import { listingSchema } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 
 export type ListingFormState =
-  | {
-      ok?: boolean;
-      error?: string;
-      fieldErrors?: Record<string, string[]>;
-      /** Set by createListing so the form can reveal the photo uploader inline. */
-      id?: string;
-    }
+  | { ok?: boolean; error?: string; fieldErrors?: Record<string, string[]> }
   | undefined;
 
 function parseListingForm(formData: FormData) {
@@ -58,22 +52,18 @@ export async function createListing(
     return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
   }
 
+  // Photos, when added, are attached to a draft created via createDraftListing,
+  // so this plain-create path only runs for a listing with no photos yet.
   const data = parsed.data;
-  const [created] = await db
-    .insert(listings)
-    .values({
-      ...data,
-      slug: uniqueSlug(data.title),
-      publishedAt: data.status === "draft" ? null : new Date(),
-    })
-    .returning({ id: listings.id });
+  await db.insert(listings).values({
+    ...data,
+    slug: uniqueSlug(data.title),
+    publishedAt: data.status === "draft" ? null : new Date(),
+  });
 
   revalidatePath("/admin/listings");
   revalidatePath("/"); // home featured grid is static
-
-  // Return the id (instead of redirecting to a separate edit page) so photos
-  // can be added inline on the same New listing page.
-  return { ok: true, id: created.id };
+  redirect("/admin/listings");
 }
 
 /** Slug base for a placeholder draft created before the form is filled in. */
@@ -139,7 +129,34 @@ export async function updateListing(
   revalidatePath("/admin/listings");
   revalidatePath(`/admin/listings/${id}/edit`);
   revalidatePath("/"); // home featured grid is static
-  return { ok: true };
+  revalidatePath("/listings");
+  redirect("/admin/listings");
+}
+
+/**
+ * Publish (make live on the public site) or unpublish (back to draft) a listing
+ * in one click from the listings table. Publishing sets it "For Sale"; the more
+ * specific states (Under Offer / Sold) are set from the edit form.
+ */
+export async function setListingPublished(
+  id: string,
+  publish: boolean,
+): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  await db
+    .update(listings)
+    .set({
+      status: publish ? "for_sale" : "draft",
+      publishedAt: publish ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(listings.id, id));
+
+  revalidatePath("/admin/listings");
+  revalidatePath("/"); // home featured grid is static
+  revalidatePath("/listings");
 }
 
 export async function deleteListing(id: string): Promise<void> {

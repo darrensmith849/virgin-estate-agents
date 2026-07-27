@@ -41,7 +41,6 @@ export function NewListingFlow({ agents }: { agents: Pick<Agent, "id" | "name">[
       <ListingForm
         action={listingId ? updateListing.bind(null, listingId) : createListing}
         agents={agents}
-        onCreated={setListingId}
         submitLabel={listingId ? "Save changes" : "Create listing"}
       />
     </div>

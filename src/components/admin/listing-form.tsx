@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { Save } from "lucide-react";
 
 import type { ListingFormState } from "@/lib/actions/listings";
@@ -20,8 +20,6 @@ type Props = {
   agents: Pick<Agent, "id" | "name">[];
   listing?: Listing;
   submitLabel?: string;
-  /** Fires once with the new id after a successful create (see NewListingFlow). */
-  onCreated?: (id: string) => void;
 };
 
 function Section({
@@ -47,7 +45,6 @@ export function ListingForm({
   agents,
   listing,
   submitLabel = "Save listing",
-  onCreated,
 }: Props) {
   const [state, formAction, pending] = useActionState<ListingFormState, FormData>(
     action,
@@ -56,17 +53,8 @@ export function ListingForm({
   const fe = state?.fieldErrors ?? {};
   const features = (listing?.features as string[] | undefined) ?? [];
   const [kind, setKind] = useState<string>(listing?.kind ?? "sale");
+  const [status, setStatus] = useState<string>(listing?.status ?? "draft");
   const isRent = kind === "rent";
-
-  // On a successful create the action returns the new id; hand it to the parent
-  // once so it can reveal the photo uploader on the same page.
-  const notifiedId = useRef<string | null>(null);
-  useEffect(() => {
-    if (state?.id && notifiedId.current !== state.id) {
-      notifiedId.current = state.id;
-      onCreated?.(state.id);
-    }
-  }, [state?.id, onCreated]);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -93,8 +81,21 @@ export function ListingForm({
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Status" htmlFor="status">
-              <Select id="status" name="status" defaultValue={listing?.status ?? "draft"}>
+            <Field
+              label="Status"
+              htmlFor="status"
+              hint={
+                status === "draft"
+                  ? "Draft — hidden from the website until published."
+                  : "Live on the public website."
+              }
+            >
+              <Select
+                id="status"
+                name="status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
                 {LISTING_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}

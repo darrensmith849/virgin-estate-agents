@@ -5,7 +5,7 @@ import { Plus, Pencil, ImageOff } from "lucide-react";
 import { listAdminListings } from "@/lib/data/listings";
 import { deleteListing } from "@/lib/actions/listings";
 import { PageHeader } from "@/components/admin/page-header";
-import { StatusBadge } from "@/components/listings/status-badge";
+import { ListingStatusControl } from "@/components/admin/listing-status-control";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
 import { buttonVariants } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
@@ -87,7 +87,7 @@ export default async function AdminListingsPage() {
                       {l.agent?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={l.status} />
+                      <ListingStatusControl id={l.id} status={l.status} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
