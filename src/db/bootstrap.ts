@@ -51,6 +51,8 @@ async function createVideoTable(): Promise<void> {
 
 // The agency's real team, previously hardcoded on the public agents page. Seeded
 // once into the DB so the (now database-driven) team page keeps showing them.
+// Photos are intentionally left blank — the agency uploads their own headshots
+// in the admin (until then the page shows an initials placeholder).
 const REAL_TEAM = [
   {
     name: "Kevin Michael Higgins",
@@ -58,7 +60,6 @@ const REAL_TEAM = [
     email: "kevinh@ccsales.co.zw",
     phone: "+263 712 602 565",
     whatsapp: "+263 712 602 565",
-    photoUrl: "/images/agents/kevin.jpg",
     bio: "Kevin guides buyers and sellers across Harare's residential market with patience, sharp local insight and a genuine eye for the right fit — keeping every step considered, transparent and unhurried.",
     sortOrder: 0,
   },
@@ -68,7 +69,6 @@ const REAL_TEAM = [
     email: "spencer@virtrust.com",
     phone: "+263 772 448 822",
     whatsapp: "+263 772 448 822",
-    photoUrl: "/images/agents/spencer.jpg",
     bio: "Spencer pairs a straightforward, client-first approach with strong local knowledge, helping buyers and investors move with confidence and secure the right property at the right price.",
     sortOrder: 1,
   },
@@ -78,7 +78,6 @@ const REAL_TEAM = [
     email: "boyd@virtrust.com",
     phone: "+263 775 472 523",
     whatsapp: "+263 775 472 523",
-    photoUrl: "/images/agents/boyd-littleford-2.jpg",
     bio: "Boyd manages our sales team with a sharp eye for Harare's prime northern suburbs and a calm, considered approach to every deal — making sure every client feels well looked after from first viewing to close.",
     sortOrder: 2,
   },
@@ -88,7 +87,6 @@ const REAL_TEAM = [
     email: "grant@virtrust.com",
     phone: "+263 712 607 060",
     whatsapp: "+263 712 607 060",
-    photoUrl: "/images/agents/grant.jpg",
     bio: "Grant leads Virgin Estate Agents, pairing deep local market knowledge with a hands-on, principled approach to every sale and acquisition — and a genuine commitment to doing right by every client.",
     sortOrder: 3,
   },
@@ -100,6 +98,15 @@ const DEMO_AGENT_EMAILS = [
   "tendai@virginestateagents.co.zw",
   "rumbi@virginestateagents.co.zw",
   "farai@virginestateagents.co.zw",
+];
+
+// Bundled placeholder headshots the team may have been seeded with earlier —
+// cleared so the agency's own uploads take their place.
+const SEEDED_PHOTO_PATHS = [
+  "/images/agents/kevin.jpg",
+  "/images/agents/spencer.jpg",
+  "/images/agents/boyd-littleford-2.jpg",
+  "/images/agents/grant.jpg",
 ];
 
 let teamSeedPromise: Promise<void> | null = null;
@@ -124,12 +131,21 @@ async function seedTeam(): Promise<void> {
     where: eq(agents.email, REAL_TEAM[0].email),
     columns: { id: true },
   });
-  if (already) return; // already seeded — do nothing further
 
-  await db.insert(agents).values(REAL_TEAM);
-  // Hide the demo agents so the public team page shows only the real team.
+  if (!already) {
+    await db.insert(agents).values(REAL_TEAM);
+    // Hide the demo agents so the public team page shows only the real team.
+    await db
+      .update(agents)
+      .set({ active: false })
+      .where(inArray(agents.email, DEMO_AGENT_EMAILS));
+  }
+
+  // Blank any bundled placeholder headshots so the agency's own uploads show.
+  // Idempotent: once cleared these rows no longer match, and real uploads
+  // (different URLs) are never touched.
   await db
     .update(agents)
-    .set({ active: false })
-    .where(inArray(agents.email, DEMO_AGENT_EMAILS));
+    .set({ photoUrl: null })
+    .where(inArray(agents.photoUrl, SEEDED_PHOTO_PATHS));
 }
