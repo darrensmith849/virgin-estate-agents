@@ -148,6 +148,26 @@ export const listingImages = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/*  Listing videos                                                             */
+/* -------------------------------------------------------------------------- */
+
+export const listingVideos = pgTable(
+  "listing_videos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => listings.id, { onDelete: "cascade" }),
+    key: text("key").notNull(), // storage key (R2 object key / local path)
+    url: text("url").notNull(), // public URL
+    title: varchar("title", { length: 255 }),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("listing_videos_listing_idx").on(t.listingId)],
+);
+
+/* -------------------------------------------------------------------------- */
 /*  Enquiries                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -224,6 +244,7 @@ export const listingsRelations = relations(listings, ({ one, many }) => ({
     references: [agents.id],
   }),
   images: many(listingImages),
+  videos: many(listingVideos),
   enquiries: many(enquiries),
 }));
 
@@ -234,6 +255,13 @@ export const agentsRelations = relations(agents, ({ many }) => ({
 export const listingImagesRelations = relations(listingImages, ({ one }) => ({
   listing: one(listings, {
     fields: [listingImages.listingId],
+    references: [listings.id],
+  }),
+}));
+
+export const listingVideosRelations = relations(listingVideos, ({ one }) => ({
+  listing: one(listings, {
+    fields: [listingVideos.listingId],
     references: [listings.id],
   }),
 }));
@@ -255,6 +283,7 @@ export type NewAgent = typeof agents.$inferInsert;
 export type Listing = typeof listings.$inferSelect;
 export type NewListing = typeof listings.$inferInsert;
 export type ListingImage = typeof listingImages.$inferSelect;
+export type ListingVideo = typeof listingVideos.$inferSelect;
 export type Enquiry = typeof enquiries.$inferSelect;
 export type NewEnquiry = typeof enquiries.$inferInsert;
 export type AgencySettings = typeof agencySettings.$inferSelect;

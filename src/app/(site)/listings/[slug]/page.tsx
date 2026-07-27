@@ -18,6 +18,7 @@ import { getListingBySlug, getSimilarListings } from "@/lib/data/listings";
 import { Container } from "@/components/ui/container";
 import { StatusBadge } from "@/components/listings/status-badge";
 import { Gallery } from "@/components/listings/gallery";
+import { VideoGallery } from "@/components/listings/video-gallery";
 import { PropertyMap } from "@/components/listings/property-map";
 import { AgentCard } from "@/components/listings/agent-card";
 import { EnquiryForm } from "@/components/listings/enquiry-form";
@@ -196,6 +197,14 @@ export default async function ListingDetailPage({
         <div className="lg:col-span-2">
           <Gallery
             images={listing.images.map((i) => ({ url: i.url, alt: i.alt }))}
+            title={listing.title}
+          />
+          <VideoGallery
+            videos={listing.videos.map((video) => ({
+              id: video.id,
+              url: video.url,
+              title: video.title,
+            }))}
             title={listing.title}
           />
 

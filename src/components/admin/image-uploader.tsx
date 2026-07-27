@@ -6,42 +6,49 @@ import { Star, Trash2, UploadCloud, GripVertical, Loader2 } from "lucide-react";
 
 import {
   addListingImages,
+  addListingVideos,
   deleteListingImage,
+  deleteListingVideo,
   reorderListingImages,
   setCoverImage,
 } from "@/lib/actions/listings";
 import { cn } from "@/lib/utils";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
+type Vid = { id: string; url: string; title: string | null };
 
 export function ImageUploader({
   listingId,
   ensureListingId,
   initialImages,
+  initialVideos,
 }: {
   /** Existing listing id (edit page). May be null on a not-yet-saved listing. */
   listingId?: string | null;
   /** Lazily creates the listing on first upload and returns its id (new page). */
   ensureListingId?: () => Promise<string>;
   initialImages: Img[];
+  initialVideos: Vid[];
 }) {
   const [images, setImages] = useState<Img[]>(initialImages);
-  const [uploading, setUploading] = useState(false);
+  const [videos, setVideos] = useState<Vid[]>(initialVideos);
+  const [uploading, setUploading] = useState<"image" | "video" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(listingId ?? null);
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null, mediaType: "image" | "video") {
     if (!files || files.length === 0) return;
     setError(null);
-    setUploading(true);
+    setUploading(mediaType);
     try {
       // Ensure a listing exists to attach to (creates a draft on the new page).
       let id = currentId;
       if (!id) {
-        if (!ensureListingId) throw new Error("No listing to attach photos to.");
+        if (!ensureListingId) throw new Error("No listing to attach media to.");
         id = await ensureListingId();
         setCurrentId(id);
       }
@@ -49,21 +56,37 @@ export function ImageUploader({
       const fd = new FormData();
       Array.from(files).forEach((f) => fd.append("files", f));
       fd.append("prefix", `listings/${id}`);
+      fd.append("mediaType", mediaType);
 
       const res = await fetch("/admin/api/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      const created = await addListingImages(id, data.files);
-      setImages((prev) => [
-        ...prev,
-        ...created.map((c) => ({ id: c.id, url: c.url, alt: c.alt, isCover: c.isCover })),
-      ]);
+      if (mediaType === "image") {
+        const created = await addListingImages(id, data.files);
+        setImages((prev) => [
+          ...prev,
+          ...created.map((c) => ({ id: c.id, url: c.url, alt: c.alt, isCover: c.isCover })),
+        ]);
+      } else {
+        const created = await addListingVideos(
+          id,
+          data.files.map((file: { key: string; url: string; alt: string }) => ({
+            ...file,
+            title: file.alt,
+          })),
+        );
+        setVideos((prev) => [
+          ...prev,
+          ...created.map((video) => ({ id: video.id, url: video.url, title: video.title })),
+        ]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      setUploading(null);
+      const input = mediaType === "image" ? imageInputRef.current : videoInputRef.current;
+      if (input) input.value = "";
     }
   }
 
@@ -78,6 +101,13 @@ export function ImageUploader({
     });
     startTransition(() => {
       deleteListingImage(id);
+    });
+  }
+
+  function handleDeleteVideo(id: string) {
+    setVideos((prev) => prev.filter((video) => video.id !== id));
+    startTransition(() => {
+      deleteListingVideo(id);
     });
   }
 
@@ -121,10 +151,10 @@ export function ImageUploader({
     <div className="rounded-xl border border-line bg-card p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg">Photos</h2>
+          <h2 className="text-lg">Photos &amp; videos</h2>
           <p className="mt-1 text-sm text-muted">
             The first photo is the cover shown on the site · drag to reorder, or
-            star a photo to move it to the front.
+            star a photo to move it to the front. Videos appear on the listing page.
           </p>
         </div>
       </div>
@@ -186,29 +216,81 @@ export function ImageUploader({
           </div>
         ))}
 
-        {/* Upload tile */}
+        {videos.map((video) => (
+          <div
+            key={video.id}
+            className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-line bg-black"
+          >
+            <video
+              src={video.url}
+              preload="metadata"
+              muted
+              className="h-full w-full object-cover"
+            />
+            <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[0.65rem] font-medium text-white">
+              Video
+            </span>
+            <button
+              type="button"
+              onClick={() => handleDeleteVideo(video.id)}
+              title="Delete video"
+              className="absolute right-1.5 top-1.5 rounded bg-white/90 p-1.5 text-red-600 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-white"
+            >
+              <Trash2 size={14} />
+            </button>
+            {video.title && (
+              <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-2 py-1 text-xs text-white">
+                {video.title}
+              </span>
+            )}
+          </div>
+        ))}
+
+        {/* Upload tiles */}
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
+          onClick={() => imageInputRef.current?.click()}
+          disabled={uploading !== null}
           className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line text-muted transition-colors hover:border-brand-300 hover:text-ink"
         >
-          {uploading ? (
+          {uploading === "image" ? (
             <Loader2 size={22} className="animate-spin" />
           ) : (
             <UploadCloud size={22} />
           )}
-          <span className="text-xs">{uploading ? "Uploading…" : "Add photos"}</span>
+          <span className="text-xs">{uploading === "image" ? "Uploading…" : "Add photos"}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => videoInputRef.current?.click()}
+          disabled={uploading !== null}
+          className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line text-muted transition-colors hover:border-brand-300 hover:text-ink"
+        >
+          {uploading === "video" ? (
+            <Loader2 size={22} className="animate-spin" />
+          ) : (
+            <UploadCloud size={22} />
+          )}
+          <span className="text-xs">{uploading === "video" ? "Uploading…" : "Add videos"}</span>
         </button>
       </div>
 
       <input
-        ref={inputRef}
+        ref={imageInputRef}
         type="file"
         accept="image/*"
         multiple
         hidden
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => handleFiles(e.target.files, "image")}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        multiple
+        hidden
+        onChange={(e) => handleFiles(e.target.files, "video")}
       />
     </div>
   );

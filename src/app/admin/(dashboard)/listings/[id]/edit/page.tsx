@@ -55,7 +55,7 @@ export default async function EditListingPage({
 
       {created && (
         <p className="mb-6 rounded-[var(--radius)] bg-brand-50 px-4 py-2.5 text-sm text-brand">
-          Listing created. Add some photos and set the status to publish it.
+          Listing created. Add photos or videos and set the status to publish it.
         </p>
       )}
 
@@ -67,6 +67,11 @@ export default async function EditListingPage({
             url: i.url,
             alt: i.alt,
             isCover: i.isCover,
+          }))}
+          initialVideos={listing.videos.map((video) => ({
+            id: video.id,
+            url: video.url,
+            title: video.title,
           }))}
         />
         <ListingForm

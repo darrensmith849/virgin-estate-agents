@@ -2,8 +2,23 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { listings, listingImages } from "@/db/schema";
+import { listings, listingImages, listingVideos } from "@/db/schema";
+import { ensureVideoTable } from "@/db/bootstrap";
 import { safeRead } from "./_safe";
+
+/** Videos for a listing, tolerant of the table not existing yet. */
+async function listingVideosFor(listingId: string) {
+  try {
+    await ensureVideoTable();
+    return await db.query.listingVideos.findMany({
+      where: eq(listingVideos.listingId, listingId),
+      orderBy: [asc(listingVideos.sortOrder)],
+    });
+  } catch (err) {
+    console.error("[data] listing videos read failed; serving none:", err);
+    return [];
+  }
+}
 
 export type PublicListingFilters = {
   kind?: "sale" | "rent";
@@ -102,17 +117,17 @@ export async function getFeaturedListings(limit = 6) {
 
 /** Public detail page by slug (any public status). */
 export async function getListingBySlug(slug: string) {
-  return safeRead(
-    () =>
-      db.query.listings.findFirst({
-        where: eq(listings.slug, slug),
-        with: {
-          agent: true,
-          images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
-        },
-      }),
-    undefined,
-  );
+  return safeRead(async () => {
+    const listing = await db.query.listings.findFirst({
+      where: eq(listings.slug, slug),
+      with: {
+        agent: true,
+        images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+      },
+    });
+    if (!listing) return undefined;
+    return { ...listing, videos: await listingVideosFor(listing.id) };
+  }, undefined);
 }
 
 /** Similar listings (same suburb or type), excluding the current one. */
@@ -158,13 +173,15 @@ export async function listAdminListings() {
 }
 
 export async function getListingById(id: string) {
-  return db.query.listings.findFirst({
+  const listing = await db.query.listings.findFirst({
     where: eq(listings.id, id),
     with: {
       agent: true,
       images: { orderBy: [asc(listingImages.sortOrder)] },
     },
   });
+  if (!listing) return listing;
+  return { ...listing, videos: await listingVideosFor(listing.id) };
 }
 
 export type ListingWithRelations = NonNullable<

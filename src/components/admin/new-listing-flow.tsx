@@ -12,15 +12,15 @@ import { ListingForm } from "@/components/admin/listing-form";
 import { ImageUploader } from "@/components/admin/image-uploader";
 
 /**
- * The whole "new listing" experience on a single page: the Photos uploader is
- * visible from the start, and the details form sits below it. Adding a photo (or
+ * The whole "new listing" experience on a single page: the media uploader is
+ * visible from the start, and the details form sits below it. Adding media (or
  * hitting Create) creates the listing behind the scenes; everything after that
  * saves to the same record — no navigation to a separate edit page.
  */
 export function NewListingFlow({ agents }: { agents: Pick<Agent, "id" | "name">[] }) {
   const [listingId, setListingId] = useState<string | null>(null);
 
-  // Called by the uploader the first time a photo is added, before the details
+  // Called by the uploader the first time media is added, before the details
   // form has been submitted — creates a draft and reuses it thereafter.
   const ensureListingId = useCallback(async () => {
     if (listingId) return listingId;
@@ -36,6 +36,7 @@ export function NewListingFlow({ agents }: { agents: Pick<Agent, "id" | "name">[
         listingId={listingId}
         ensureListingId={ensureListingId}
         initialImages={[]}
+        initialVideos={[]}
       />
 
       <ListingForm

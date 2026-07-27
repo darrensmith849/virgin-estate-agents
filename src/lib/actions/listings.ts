@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { listingImages, listings } from "@/db/schema";
+import { listingImages, listingVideos, listings } from "@/db/schema";
+import { ensureVideoTable } from "@/db/bootstrap";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getStorage } from "@/lib/storage";
 import { listingSchema } from "@/lib/validations";
@@ -163,13 +164,15 @@ export async function deleteListing(id: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
 
-  // Best-effort: remove stored image objects too.
+  // Best-effort: remove stored image and video objects too (tolerant of the
+  // videos table not existing yet).
   const imgs = await db.query.listingImages.findMany({
     where: eq(listingImages.listingId, id),
     columns: { key: true },
   });
+  const videos = await listingVideoKeys(id);
   const storage = await getStorage();
-  await Promise.allSettled(imgs.map((i) => storage.delete(i.key)));
+  await Promise.allSettled([...imgs, ...videos].map((media) => storage.delete(media.key)));
 
   await db.delete(listings).where(eq(listings.id, id));
   revalidatePath("/admin/listings");
@@ -291,6 +294,74 @@ export async function reorderListingImages(
   );
 
   revalidatePath(`/admin/listings/${listingId}/edit`);
+  revalidatePath("/");
+  revalidatePath("/listings");
+}
+
+/* --------------------------------- Videos -------------------------------- */
+
+/** Storage keys of a listing's videos, tolerant of the table not existing. */
+async function listingVideoKeys(listingId: string): Promise<{ key: string }[]> {
+  try {
+    await ensureVideoTable();
+    return await db.query.listingVideos.findMany({
+      where: eq(listingVideos.listingId, listingId),
+      columns: { key: true },
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function addListingVideos(
+  listingId: string,
+  videos: { key: string; url: string; title?: string }[],
+) {
+  const user = await getCurrentUser();
+  if (!user || videos.length === 0) return [];
+
+  // Create the videos table on first use (like photos, this "just works").
+  await ensureVideoTable();
+
+  const existingCount = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(listingVideos)
+    .where(eq(listingVideos.listingId, listingId));
+  let order = existingCount[0]?.c ?? 0;
+
+  const inserted = await db
+    .insert(listingVideos)
+    .values(
+      videos.map((video) => ({
+        listingId,
+        key: video.key,
+        url: video.url,
+        title: video.title,
+        sortOrder: order++,
+      })),
+    )
+    .returning();
+
+  revalidatePath(`/admin/listings/${listingId}/edit`);
+  revalidatePath("/");
+  revalidatePath("/listings");
+  return inserted;
+}
+
+export async function deleteListingVideo(videoId: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const video = await db.query.listingVideos.findFirst({
+    where: eq(listingVideos.id, videoId),
+  });
+  if (!video) return;
+
+  const storage = await getStorage();
+  await storage.delete(video.key).catch(() => {});
+  await db.delete(listingVideos).where(eq(listingVideos.id, videoId));
+
+  revalidatePath(`/admin/listings/${video.listingId}/edit`);
   revalidatePath("/");
   revalidatePath("/listings");
 }
