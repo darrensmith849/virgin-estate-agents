@@ -149,13 +149,41 @@ export function ImageUploader({
 
   return (
     <div className="rounded-xl border border-line bg-card p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-lg">Photos &amp; videos</h2>
           <p className="mt-1 text-sm text-muted">
             The first photo is the cover shown on the site · drag to reorder, or
             star a photo to move it to the front. Videos appear on the listing page.
           </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={uploading !== null}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-paper-2 disabled:opacity-60"
+          >
+            {uploading === "image" ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <UploadCloud size={15} />
+            )}
+            {uploading === "image" ? "Uploading…" : "Add photos"}
+          </button>
+          <button
+            type="button"
+            onClick={() => videoInputRef.current?.click()}
+            disabled={uploading !== null}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-paper-2 disabled:opacity-60"
+          >
+            {uploading === "video" ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <UploadCloud size={15} />
+            )}
+            {uploading === "video" ? "Uploading…" : "Add videos"}
+          </button>
         </div>
       </div>
 
@@ -165,7 +193,12 @@ export function ImageUploader({
         </p>
       )}
 
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {images.length === 0 && videos.length === 0 ? (
+        <p className="mt-5 rounded-lg border border-dashed border-line px-6 py-10 text-center text-sm text-muted">
+          No photos or videos yet — use the “Add photos” or “Add videos” buttons above.
+        </p>
+      ) : (
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {images.map((img, index) => (
           <div
             key={img.id}
@@ -246,35 +279,8 @@ export function ImageUploader({
           </div>
         ))}
 
-        {/* Upload tiles */}
-        <button
-          type="button"
-          onClick={() => imageInputRef.current?.click()}
-          disabled={uploading !== null}
-          className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line text-muted transition-colors hover:border-brand-300 hover:text-ink"
-        >
-          {uploading === "image" ? (
-            <Loader2 size={22} className="animate-spin" />
-          ) : (
-            <UploadCloud size={22} />
-          )}
-          <span className="text-xs">{uploading === "image" ? "Uploading…" : "Add photos"}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => videoInputRef.current?.click()}
-          disabled={uploading !== null}
-          className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line text-muted transition-colors hover:border-brand-300 hover:text-ink"
-        >
-          {uploading === "video" ? (
-            <Loader2 size={22} className="animate-spin" />
-          ) : (
-            <UploadCloud size={22} />
-          )}
-          <span className="text-xs">{uploading === "video" ? "Uploading…" : "Add videos"}</span>
-        </button>
-      </div>
+        </div>
+      )}
 
       <input
         ref={imageInputRef}
