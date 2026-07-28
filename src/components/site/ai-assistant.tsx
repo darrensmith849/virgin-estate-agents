@@ -88,17 +88,19 @@ export function AiAssistant() {
 
   return (
     <>
+      {/* Icon-only on phones so this and the WhatsApp button stay a compact
+          pair in the corner; the label returns from `sm` up. */}
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open the Virgin Estate assistant"
-          className="group fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 rounded-full bg-brand py-3 pl-3 pr-4 text-white shadow-lg shadow-brand/30 transition-transform duration-300 ease-out hover:scale-105 hover:bg-brand-700"
+          className="group fixed bottom-5 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-brand p-2.5 text-white shadow-lg shadow-brand/30 transition-transform duration-300 ease-out hover:scale-105 hover:bg-brand-700 sm:bottom-6 sm:right-6 sm:py-3 sm:pl-3 sm:pr-4"
         >
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/15 sm:h-8 sm:w-8">
             <Sparkles size={18} />
           </span>
-          <span className="text-sm font-medium">Ask us</span>
+          <span className="hidden text-sm font-medium sm:inline">Ask us</span>
         </button>
       )}
 

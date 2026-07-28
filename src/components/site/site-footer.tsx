@@ -32,6 +32,10 @@ const SOCIAL_LINKS = [
 export function SiteFooter() {
   const year = new Date().getFullYear();
   const wa = whatsappLink(SITE.whatsapp);
+  const socials = SOCIAL_LINKS.flatMap((s) => {
+    const href = SITE.social[s.key];
+    return href ? [{ ...s, href }] : [];
+  });
 
   return (
     <footer className="border-t border-black/10 bg-transparent">
@@ -50,42 +54,33 @@ export function SiteFooter() {
             {SITE.registration}
           </p>
 
-          {/* Social — icons render now; each becomes a link once a URL is set
-              in SITE.social (the agency has no accounts yet). */}
-          <div className="mt-6 flex items-center gap-2.5">
-            {SOCIAL_LINKS.map((s) => {
-              const href = SITE.social[s.key];
-              const cls =
-                "inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-soft";
-              const icon = (
-                <svg
-                  viewBox="0 0 24 24"
-                  width="15"
-                  height="15"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d={s.path} />
-                </svg>
-              );
-              return href ? (
+          {/* Social — only the accounts that actually exist are shown. An icon
+              with nowhere to go reads as a broken link, so unset keys in
+              SITE.social are omitted entirely rather than rendered inert. */}
+          {socials.length > 0 && (
+            <div className="mt-6 flex items-center gap-2.5">
+              {socials.map((s) => (
                 <a
                   key={s.key}
-                  href={href}
+                  href={s.href}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={s.label}
-                  className={`${cls} transition-colors hover:border-brand hover:bg-brand hover:text-white`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-brand hover:bg-brand hover:text-white"
                 >
-                  {icon}
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="15"
+                    height="15"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d={s.path} />
+                  </svg>
                 </a>
-              ) : (
-                <span key={s.key} aria-label={s.label} className={cls}>
-                  {icon}
-                </span>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
@@ -170,8 +165,10 @@ export function SiteFooter() {
         </div>
       </Container>
 
+      {/* Extra bottom padding on phones so the floating WhatsApp/assistant
+          buttons never sit on top of the last row of links. */}
       <div className="border-t border-line">
-        <Container className="flex flex-col items-center justify-between gap-3 py-6 text-xs text-muted sm:flex-row">
+        <Container className="flex flex-col items-center justify-between gap-3 py-6 pb-24 text-xs text-muted sm:flex-row sm:pb-6">
           <p>
             © {year} {SITE.name}. All rights reserved.
           </p>
