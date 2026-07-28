@@ -26,11 +26,22 @@ type MapListing = {
   suburb: string | null;
 };
 
-/** Marker labels have to stay short — "$1.2m", not "$1,200,000". */
-function compactPrice(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
-  if (n >= 1_000) return `$${Math.round(n / 1000)}k`;
-  return `$${n}`;
+/**
+ * Marker labels have to stay short — "$1.2m", not "$1,200,000". Rentals carry
+ * a "/mo" so a $2,000 letting can't be mistaken for a $2,000 house next to a
+ * pin reading $725k.
+ */
+function compactPrice(l: Pick<MapListing, "price" | "kind" | "rentPeriod">) {
+  const n = l.price;
+  const amount =
+    n >= 1_000_000
+      ? `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`
+      : n >= 1_000
+        ? `$${Math.round(n / 1000)}k`
+        : `$${n}`;
+  if (l.kind !== "rent") return amount;
+  const per = (l.rentPeriod || "month").slice(0, 2).toLowerCase();
+  return `${amount}/${per}`;
 }
 
 function escapeHtml(s: string) {
@@ -84,7 +95,7 @@ export function ListingsMap({ items }: { items: MapListing[] }) {
         const marker = L.marker([l.latitude!, l.longitude!], {
           icon: L.divIcon({
             className: "vea-price-pin",
-            html: `<span>${compactPrice(l.price)}</span>`,
+            html: `<span>${compactPrice(l)}</span>`,
             iconSize: [0, 0], // sized by its own content, not a fixed box
           }),
           title: l.title,
