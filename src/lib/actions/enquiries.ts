@@ -85,10 +85,10 @@ export async function createEnquiry(
     `Name: ${name}`,
     `Email: ${email}`,
     phone ? `Phone: ${phone}` : null,
-    "",
+    "", // blank line before the message body
     message,
   ]
-    .filter(Boolean)
+    .filter((line) => line !== null)
     .join("\n");
 
   return { ok: true, whatsappUrl: whatsappLink(SITE.whatsapp, summary) ?? undefined };
