@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
 
 import { getListingById } from "@/lib/data/listings";
 import { listAllAgents } from "@/lib/data/agents";
@@ -38,13 +38,27 @@ export default async function EditListingPage({
       </Link>
 
       <PageHeader title="Edit listing" description={listing.title}>
+        {/* Drafts aren't on the public site, so send them to the admin preview
+            instead of a URL that would 404. */}
         <a
-          href={`/listings/${listing.slug}`}
+          href={
+            listing.status === "draft"
+              ? `/admin/preview/${listing.id}`
+              : `/listings/${listing.slug}`
+          }
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-line px-3 py-2 text-sm text-ink-soft hover:bg-paper-2"
         >
-          <ExternalLink size={15} /> View
+          {listing.status === "draft" ? (
+            <>
+              <Eye size={15} /> Preview
+            </>
+          ) : (
+            <>
+              <ExternalLink size={15} /> View
+            </>
+          )}
         </a>
         <ConfirmDelete
           action={deleteListing.bind(null, listing.id)}

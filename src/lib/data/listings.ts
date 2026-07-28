@@ -35,6 +35,15 @@ export type PublicListingFilters = {
 
 const PUBLIC_STATUSES = ["for_sale", "under_offer", "sold"] as const;
 
+/**
+ * Drizzle's relational `with` can't filter the joined row, so a deactivated
+ * agent would still have their name, photo and direct line rendered on every
+ * listing they're attached to. Drop them on the way out instead.
+ */
+function publicAgent<T extends { active: boolean }>(agent: T | null | undefined) {
+  return agent?.active ? agent : null;
+}
+
 /** Listings for the public index, with cover image + agent. */
 export async function listPublicListings(filters: PublicListingFilters = {}) {
   const perPage = Math.min(filters.perPage ?? 12, 48);
@@ -84,7 +93,7 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
       ]);
 
       return {
-        items: rows,
+        items: rows.map((r) => ({ ...r, agent: publicAgent(r.agent) })),
         total: totalRow[0]?.count ?? 0,
         page,
         perPage,
@@ -98,8 +107,8 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
 /** Featured listings for the homepage. */
 export async function getFeaturedListings(limit = 6) {
   return safeRead(
-    () =>
-      db.query.listings.findMany({
+    async () => {
+      const rows = await db.query.listings.findMany({
         where: and(
           eq(listings.isFeatured, true),
           inArray(listings.status, [...PUBLIC_STATUSES]),
@@ -110,23 +119,36 @@ export async function getFeaturedListings(limit = 6) {
           agent: true,
           images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
         },
-      }),
+      });
+      return rows.map((r) => ({ ...r, agent: publicAgent(r.agent) }));
+    },
     [],
   );
 }
 
-/** Public detail page by slug (any public status). */
+/**
+ * Public detail page by slug. Restricted to published statuses — a draft must
+ * not be reachable by guessing its slug. Admins preview unpublished listings
+ * through `/admin/listings/[id]/preview` instead.
+ */
 export async function getListingBySlug(slug: string) {
   return safeRead(async () => {
     const listing = await db.query.listings.findFirst({
-      where: eq(listings.slug, slug),
+      where: and(
+        eq(listings.slug, slug),
+        inArray(listings.status, [...PUBLIC_STATUSES]),
+      ),
       with: {
         agent: true,
         images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
       },
     });
     if (!listing) return undefined;
-    return { ...listing, videos: await listingVideosFor(listing.id) };
+    return {
+      ...listing,
+      agent: publicAgent(listing.agent),
+      videos: await listingVideosFor(listing.id),
+    };
   }, undefined);
 }
 

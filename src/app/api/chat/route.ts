@@ -6,6 +6,7 @@ import {
   type AssistantListing,
 } from "@/lib/ai-knowledge";
 import { listPublicListings } from "@/lib/data/listings";
+import { withinRateLimit } from "@/lib/rate-limit";
 import { SITE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +72,15 @@ async function askWorkersAI(
   }
 }
 
+const BUSY = `I'm getting a lot of questions right now — give me a minute and try again, or WhatsApp us on ${SITE.whatsapp} for an immediate reply.`;
+
 export async function POST(req: Request): Promise<Response> {
+  // This endpoint is public and every call costs a model request, so throttle
+  // per IP before doing any work.
+  if (!(await withinRateLimit("CHAT_LIMITER"))) {
+    return Response.json({ reply: BUSY }, { status: 429 });
+  }
+
   let incoming: unknown;
   try {
     incoming = await req.json();

@@ -81,6 +81,14 @@ export function timeAgo(date: Date | string): string {
   return formatDate(d);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Guard for ids that reach the database from public input. */
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+
 /** Build a wa.me click-to-chat link (very common for ZW property enquiries). */
 export function whatsappLink(phone?: string | null, text?: string): string | null {
   if (!phone) return null;

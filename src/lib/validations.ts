@@ -94,11 +94,26 @@ export const settingsSchema = z.object({
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
 
+// Max lengths mirror the `enquiries` columns (name 160, email 255, phone 40)
+// so an over-long value comes back as a field error rather than a Postgres
+// "value too long" throw. `message` is a text column but still capped, to keep
+// a bot from writing unbounded rows.
 export const enquirySchema = z.object({
-  name: z.string().trim().min(2, "Please enter your name"),
-  email: z.string().email("Enter a valid email"),
-  phone: optionalString,
-  message: z.string().trim().min(5, "Please add a short message"),
-  listingId: z.string().optional().nullable(),
+  name: z.string().trim().min(2, "Please enter your name").max(160, "That name is too long"),
+  email: z.string().email("Enter a valid email").max(255, "That email is too long"),
+  phone: z
+    .string()
+    .trim()
+    .max(40, "That number is too long")
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
+  message: z
+    .string()
+    .trim()
+    .min(5, "Please add a short message")
+    .max(2000, "Please keep your message under 2000 characters"),
+  // A listing id always comes from our own hidden field; anything that isn't a
+  // uuid is dropped rather than passed to the database (where it would throw).
+  listingId: z.uuid().nullish().catch(null),
 });
 export type EnquiryInput = z.infer<typeof enquirySchema>;

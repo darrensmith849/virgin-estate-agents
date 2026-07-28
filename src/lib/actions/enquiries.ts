@@ -6,12 +6,19 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { enquiries, listings } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { sendEnquiryEmails } from "@/lib/email";
 import { enquirySchema } from "@/lib/validations";
+import { withinRateLimit } from "@/lib/rate-limit";
+import { whatsappLink } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 
 export type EnquiryFormState =
-  | { ok?: boolean; error?: string; fieldErrors?: Record<string, string[]> }
+  | {
+      ok?: boolean;
+      error?: string;
+      fieldErrors?: Record<string, string[]>;
+      /** Deep link that hands the enquiry straight to the agency on WhatsApp. */
+      whatsappUrl?: string;
+    }
   | undefined;
 
 export async function createEnquiry(
@@ -30,17 +37,16 @@ export async function createEnquiry(
     return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
   }
 
+  // The form is unauthenticated, so throttle per IP before touching the DB.
+  if (!(await withinRateLimit("ENQUIRY_LIMITER"))) {
+    return {
+      error: `Too many enquiries from this connection. Please wait a moment, or WhatsApp us on ${SITE.whatsapp}.`,
+    };
+  }
+
   const { name, email, phone, message, listingId } = parsed.data;
 
-  await db.insert(enquiries).values({
-    name,
-    email,
-    phone: phone ?? null,
-    message,
-    listingId: listingId || null,
-  });
-
-  // Look up the listing for richer email context (best-effort).
+  // Look up the listing first so a bad id can't fail the insert on the FK.
   let listing: { title: string; slug: string } | undefined;
   if (listingId) {
     listing = await db.query.listings.findFirst({
@@ -49,20 +55,43 @@ export async function createEnquiry(
     });
   }
 
-  await sendEnquiryEmails({
-    name,
-    email,
-    phone,
-    message,
-    listingTitle: listing?.title,
-    listingUrl: listing ? `${SITE.url}/listings/${listing.slug}` : undefined,
-  });
+  try {
+    await db.insert(enquiries).values({
+      name,
+      email,
+      phone: phone ?? null,
+      message,
+      listingId: listing ? listingId : null,
+    });
+  } catch (err) {
+    console.error("[enquiry] Failed to save:", err);
+    return {
+      error: `Sorry, something went wrong saving your enquiry. Please WhatsApp us on ${SITE.whatsapp} or call ${SITE.phone}.`,
+    };
+  }
 
   // Surface the new enquiry (and its unread badge) in the admin area promptly.
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin");
 
-  return { ok: true };
+  // The enquiry is safely recorded in the admin inbox; the WhatsApp link is the
+  // fast lane — one tap opens a chat to the agency with the details filled in,
+  // so nothing depends on an email service being configured.
+  const summary = [
+    `Hi ${SITE.shortName}, I've just sent an enquiry through your website.`,
+    listing
+      ? `Property: ${listing.title} (${SITE.url}/listings/${listing.slug})`
+      : null,
+    `Name: ${name}`,
+    `Email: ${email}`,
+    phone ? `Phone: ${phone}` : null,
+    "",
+    message,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return { ok: true, whatsappUrl: whatsappLink(SITE.whatsapp, summary) ?? undefined };
 }
 
 /* ------------------------------- Admin ----------------------------------- */

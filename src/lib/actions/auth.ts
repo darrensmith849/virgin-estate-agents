@@ -8,6 +8,7 @@ import { users } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession, deleteSession } from "@/lib/auth/session";
 import { loginSchema } from "@/lib/validations";
+import { withinRateLimit } from "@/lib/rate-limit";
 
 export type LoginState = { error?: string } | undefined;
 
@@ -21,6 +22,11 @@ export async function login(
   });
   if (!parsed.success) {
     return { error: "Enter your email and password." };
+  }
+
+  // Throttle password guessing against the admin login.
+  if (!(await withinRateLimit("LOGIN_LIMITER"))) {
+    return { error: "Too many attempts. Please wait a minute and try again." };
   }
 
   const { email, password } = parsed.data;

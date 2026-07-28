@@ -13,7 +13,7 @@ analytics, built for Virgin Estate Agents (Harare, Zimbabwe).
   agency settings, and view analytics.
 - **Tech stack** — Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 ·
   Drizzle ORM · Neon Postgres · Cloudflare Workers (via OpenNext) · Cloudflare R2
-  (images) · Mapbox (maps) · Resend (email).
+  (images) · Mapbox (maps). Enquiries go to the admin inbox + WhatsApp — no email service.
 
 ---
 
@@ -88,7 +88,7 @@ src/
     auth/              # password hashing, JWT session, data-access guard
     data/              # read queries
     storage/           # image storage (R2 in prod, local FS in dev)
-    email.ts           # Resend notifications
+    rate-limit.ts      # per-IP throttling for public write/spend paths
   proxy.ts             # optimistic auth gate for /admin (Next 16 "middleware")
 ```
 
@@ -105,13 +105,46 @@ See `.env.example` for the full list. Summary:
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | seed | Used by `pnpm db:seed` to create the admin login |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | Public site URL (for SEO, canonical, sitemap) |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | optional | Maps show a tasteful fallback until set |
-| `RESEND_API_KEY` | optional | Enquiry emails are logged (not sent) until set |
-| `ENQUIRY_NOTIFY_TO` / `ENQUIRY_FROM` | optional | Recipient + sender for enquiry emails |
+| — | — | No email service is used. Enquiries land in the admin inbox and the visitor is offered a WhatsApp handoff — see §5a |
 | `R2_PUBLIC_URL` | prod | Public base URL of the R2 bucket serving images |
 | `NEXT_PUBLIC_CF_BEACON_TOKEN` | optional | Enables Cloudflare Web Analytics |
 
 Secrets must **never** be committed. Locally they live in `.env` (and `.dev.vars`
 for `wrangler`); in production set them with `wrangler secret put <NAME>`.
+
+### 5a. How enquiries reach the agency
+
+There is deliberately **no email service** in this project — nothing to pay for,
+nothing to expire.
+
+1. Every enquiry is written to the `enquiries` table and appears immediately at
+   **`/admin/enquiries`**, with an unread badge in the admin sidebar. This is the
+   permanent record.
+2. On submit the visitor is offered a **"Continue on WhatsApp"** button that opens
+   a chat to the number in `SITE.whatsapp` (`src/lib/constants.ts`) with their
+   name, email, phone, the property and their message already typed. This is how
+   the agency hears about an enquiry in real time.
+
+To change the number that receives enquiries, edit `SITE.whatsapp` in
+`src/lib/constants.ts` and redeploy.
+
+### 5b. Abuse protection
+
+The public paths that write to the database or cost money are throttled per IP
+using Cloudflare's rate-limiting bindings, declared in `wrangler.jsonc` and read
+by `src/lib/rate-limit.ts`:
+
+| Limiter | Protects | Allowance |
+|---|---|---|
+| `CHAT_LIMITER` | `/api/chat` (billable model calls) | 10 / minute |
+| `ENQUIRY_LIMITER` | Enquiry form | 4 / minute |
+| `LOGIN_LIMITER` | Admin login (password guessing) | 8 / minute |
+| `VIEW_LIMITER` | Listing view tracking | 30 / minute |
+
+Nothing needs configuring in the dashboard. The checks fail **open** — if a
+limiter is unavailable the request is allowed, so the site can never be taken
+down by the throttle itself. Off Cloudflare (`next dev`) the bindings are absent
+and all checks pass.
 
 ---
 
@@ -125,7 +158,6 @@ for `wrangler`); in production set them with `wrangler secret put <NAME>`.
    ```bash
    wrangler secret put DATABASE_URL
    wrangler secret put SESSION_SECRET
-   wrangler secret put RESEND_API_KEY
    # ...and the rest from §5
    ```
 4. **Migrate** the Neon DB: with `DATABASE_URL` pointed at Neon, run `pnpm db:migrate`
@@ -133,7 +165,7 @@ for `wrangler`); in production set them with `wrangler secret put <NAME>`.
 5. **Deploy:** `pnpm deploy` (runs the OpenNext build + Wrangler deploy).
 6. **Custom domain** — add the domain in the Cloudflare dashboard and point DNS at
    the Worker. Set `NEXT_PUBLIC_SITE_URL` to the live URL.
-7. **Mapbox / Resend / Web Analytics** — add the respective tokens as secrets/vars.
+7. **Mapbox / Web Analytics** — add the respective tokens as secrets/vars.
 
 > Note: We use the **OpenNext Cloudflare adapter** (`@opennextjs/cloudflare`),
 > the current recommended path for Next.js on Cloudflare (the older
@@ -148,7 +180,7 @@ for `wrangler`); in production set them with `wrangler secret put <NAME>`.
 - [ ] R2 bucket created + binding enabled + `R2_PUBLIC_URL` set
 - [ ] All production secrets set via `wrangler secret`
 - [ ] Mapbox token added (maps live)
-- [ ] Resend domain verified + API key added (emails send)
+- [ ] Enquiry form tested end-to-end (admin inbox + WhatsApp handoff)
 - [ ] Real listings + photos added; demo content removed
 - [ ] Agency settings + agent profiles filled in
 - [ ] Brand assets applied (logo, final colours)

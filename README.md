@@ -4,7 +4,7 @@ A modern, photography-led real-estate website with a content-managed admin
 dashboard and analytics, for Virgin Estate Agents (Harare, Zimbabwe).
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Drizzle ORM ·
-Neon Postgres · Cloudflare Workers (OpenNext) · Cloudflare R2 · Mapbox · Resend.
+Neon Postgres · Cloudflare Workers (OpenNext) · Cloudflare R2 · Mapbox.
 
 ## Quick start
 
@@ -30,6 +30,6 @@ to Cloudflare, the go-live checklist, and the VPS-migration path.
   enquiry form, structured data (SEO)
 - Admin: listings CRUD with drag-reorder photo uploads, agents, enquiries inbox
   with status workflow, agency settings
-- Email notifications (Resend) and an analytics dashboard (views, top listings,
+- Enquiry inbox with WhatsApp handoff, and an analytics dashboard (views, top listings,
   traffic sources, conversion)
 - USD pricing, WhatsApp-first contact, and Harare-specific content

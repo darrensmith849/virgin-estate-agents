@@ -23,10 +23,14 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close the mobile menu on navigation.
-  useEffect(() => {
+  // Close the mobile menu on navigation. Adjusting during render rather than in
+  // an effect (React's "resetting state when a prop changes" pattern) avoids the
+  // extra commit that would briefly paint the menu over the new page.
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   // Only the home page has a full-bleed dark hero behind a transparent header.
   // There we use light text; elsewhere (and once scrolled) the header sits on

@@ -15,9 +15,22 @@
   "ai": {
     "binding": "AI"
   },
+  // Per-IP throttling for the public paths that write to the database or cost
+  // money. See src/lib/rate-limit.ts. `namespace_id` is just a stable number we
+  // choose per limiter; nothing to provision in the dashboard.
+  "ratelimits": [
+    // The AI assistant — every call is a billable model request.
+    { "name": "CHAT_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    // Enquiry form submissions.
+    { "name": "ENQUIRY_LIMITER", "namespace_id": "1002", "simple": { "limit": 4, "period": 60 } },
+    // Admin login — slows password guessing.
+    { "name": "LOGIN_LIMITER", "namespace_id": "1003", "simple": { "limit": 8, "period": 60 } },
+    // Listing view tracking.
+    { "name": "VIEW_LIMITER", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } }
+  ],
   // Non-secret config. Secrets (DATABASE_URL, SESSION_SECRET, OPENAI_API_KEY,
-  // RESEND_API_KEY, R2 credentials) are set with `wrangler secret put <NAME>` or
-  // in `.dev.vars` for local preview — never commit them here.
+  // R2 credentials) are set with `wrangler secret put <NAME>` or in `.dev.vars`
+  // for local preview — never commit them here.
   //
   // Chat assistant LLM: OPENAI_BASE_URL + OPENAI_MODEL point it at a provider
   // (here, Groq's OpenAI-compatible API); only the OPENAI_API_KEY is a secret.

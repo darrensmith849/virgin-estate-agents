@@ -9,7 +9,7 @@ import { ListingCard } from "@/components/listings/listing-card";
 import { PropertyMap } from "@/components/listings/property-map";
 import { listPublicListings } from "@/lib/data/listings";
 import { SITE } from "@/lib/constants";
-import { slugifySuburb, suburbFromSlug, suburbBlurb } from "@/lib/suburbs";
+import { suburbFromSlug, suburbBlurb } from "@/lib/suburbs";
 import { suburbCoords } from "@/lib/suburb-coords";
 
 // Listings reflect the live database.
