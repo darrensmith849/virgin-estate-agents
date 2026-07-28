@@ -115,14 +115,19 @@ export function ListingsMap({ items }: { items: MapListing[] }) {
         });
       }
 
-      map.fitBounds(
-        L.latLngBounds(withCoords.map((l) => [l.latitude!, l.longitude!])),
-        { padding: [56, 56], maxZoom: 15 },
+      // Re-fit after every resize, not just once: `invalidateSize` keeps the
+      // zoom and only recentres, so fitting before the container has settled
+      // leaves half the pins off-screen.
+      const bounds = L.latLngBounds(
+        withCoords.map((l) => [l.latitude!, l.longitude!] as [number, number]),
       );
-
-      // Settle sizing if the container mounted while hidden or animating.
-      requestAnimationFrame(() => map.invalidateSize());
-      setTimeout(() => map.invalidateSize(), 250);
+      const fit = () => {
+        map.invalidateSize();
+        map.fitBounds(bounds, { padding: [56, 56], maxZoom: 15 });
+      };
+      fit();
+      requestAnimationFrame(fit);
+      setTimeout(fit, 250);
     })();
 
     return () => {
