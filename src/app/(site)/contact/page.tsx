@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MapPin, Mail, MessageCircle, Clock, ArrowRight } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
+import { WhatsappIcon } from "@/components/site/whatsapp-icon";
 import { EnquiryForm } from "@/components/listings/enquiry-form";
 import { PropertyMap } from "@/components/listings/property-map";
 import { SITE } from "@/lib/constants";
@@ -18,15 +19,10 @@ export const metadata: Metadata = {
 // 1-year static cache); the page no longer depends on the database.
 export const dynamic = "force-dynamic";
 
-/** WhatsApp glyph — same mark as the floating WhatsApp button, for the
- *  inline "message me" buttons beside each contact. */
-function WhatsappGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.2 4.74 1.2h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm0 18.15h-.01c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.23 8.23 0 0 1-1.26-4.39c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.25 8.24zm4.52-6.17c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.39.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.14-1.18-.06-.11-.22-.17-.47-.29z" />
-    </svg>
-  );
-}
+/** Shared by every click cue in the contact list — the email arrows and the
+ *  WhatsApp buttons are the same kind of action, so they get the same chip. */
+const CUE =
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand/40 bg-sand/10 text-sand transition-colors group-hover:border-brand group-hover:bg-brand group-hover:text-white";
 
 export default function ContactPage() {
   // Canonical contact details come from config so a stale settings row can't
@@ -85,7 +81,7 @@ export default function ContactPage() {
                   <span>{email}</span>
                   <span
                     aria-hidden="true"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand/40 bg-sand/10 text-sand transition-colors group-hover:border-brand group-hover:bg-brand group-hover:text-white"
+                    className={CUE}
                   >
                     <ArrowRight size={14} />
                   </span>
@@ -98,7 +94,7 @@ export default function ContactPage() {
                   <span>{kevinEmail}</span>
                   <span
                     aria-hidden="true"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand/40 bg-sand/10 text-sand transition-colors group-hover:border-brand group-hover:bg-brand group-hover:text-white"
+                    className={CUE}
                   >
                     <ArrowRight size={14} />
                   </span>
@@ -108,8 +104,8 @@ export default function ContactPage() {
             {wa && (
               <li className="flex items-start gap-3">
                 <MessageCircle className="mt-0.5 shrink-0 text-sand" size={18} />
-                {/* Each contact is a WhatsApp link; the green WhatsApp button is
-                    the click cue, mirroring the email arrows above. */}
+                {/* Each contact is a WhatsApp link; the button is the click
+                    cue, sharing CUE with the email arrows above. */}
                 <div className="flex flex-col gap-4">
                   <a
                     href={wa}
@@ -124,9 +120,9 @@ export default function ContactPage() {
                     </span>
                     <span
                       aria-hidden="true"
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-white transition-transform group-hover:scale-105"
+                      className={CUE}
                     >
-                      <WhatsappGlyph className="h-4 w-4" />
+                      <WhatsappIcon size={14} />
                     </span>
                   </a>
                   {kevinWa && (
@@ -143,9 +139,9 @@ export default function ContactPage() {
                       </span>
                       <span
                         aria-hidden="true"
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-white transition-transform group-hover:scale-105"
+                        className={CUE}
                       >
-                        <WhatsappGlyph className="h-4 w-4" />
+                        <WhatsappIcon size={14} />
                       </span>
                     </a>
                   )}
