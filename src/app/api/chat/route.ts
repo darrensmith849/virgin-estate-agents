@@ -1,5 +1,3 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-
 import {
   buildSystemPrompt,
   formatListingsContext,
@@ -53,19 +51,37 @@ async function askChatCompletion(
   }
 }
 
-/** Fallback brain: Cloudflare Workers AI (Llama 3.3 70B) via the `AI` binding. */
+/** Fallback brain: Cloudflare Workers AI (Llama 3.3 70B).
+ *
+ *  This used to run through the Workers `AI` binding, which only exists inside
+ *  the Workers runtime. Now that the app is a plain Node server on Hetzner we
+ *  call the same model over the public REST API instead, which needs an account
+ *  id and an API token with the Workers AI read permission. Returns null when
+ *  those are unset so the caller degrades to the WhatsApp fallback message. */
 async function askWorkersAI(
-  ai: { run: (model: string, opts: unknown) => Promise<{ response?: string }> } | undefined,
+  accountId: string | undefined,
+  apiToken: string | undefined,
   messages: ChatMsg[],
 ): Promise<string | null> {
-  if (!ai) return null;
+  if (!accountId || !apiToken) return null;
   try {
-    const result = await ai.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-      messages,
-      max_tokens: 512,
-      temperature: 0.4,
-    });
-    return (result?.response ?? "").trim() || null;
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({ messages, max_tokens: 512, temperature: 0.4 }),
+      },
+    );
+    if (!res.ok) {
+      console.error("Workers AI error:", res.status, await res.text().catch(() => ""));
+      return null;
+    }
+    const data = (await res.json()) as { result?: { response?: string } };
+    return (data?.result?.response ?? "").trim() || null;
   } catch (err) {
     console.error("Workers AI chat error:", err);
     return null;
@@ -124,12 +140,14 @@ export async function POST(req: Request): Promise<Response> {
     ...history,
   ];
 
-  const { env } = getCloudflareContext();
-  const e = env as unknown as {
+  // Running as a Node server now, so config comes from the process environment
+  // (/etc/virgin-prod.env) rather than a Workers binding.
+  const e = process.env as {
     OPENAI_API_KEY?: string;
     OPENAI_MODEL?: string;
     OPENAI_BASE_URL?: string;
-    AI?: { run: (model: string, opts: unknown) => Promise<{ response?: string }> };
+    CLOUDFLARE_ACCOUNT_ID?: string;
+    CLOUDFLARE_AI_TOKEN?: string;
   };
 
   // 1) Prefer the external LLM (OpenAI or xAI/Grok) when a key is configured.
@@ -149,7 +167,11 @@ export async function POST(req: Request): Promise<Response> {
 
   // 2) Fall back to Workers AI (keeps the assistant alive if the external LLM is
   //    unset or unavailable).
-  const reply = await askWorkersAI(e.AI, messages);
+  const reply = await askWorkersAI(
+    e.CLOUDFLARE_ACCOUNT_ID,
+    e.CLOUDFLARE_AI_TOKEN,
+    messages,
+  );
   console.log(
     e.OPENAI_API_KEY
       ? "[chat] external LLM failed — answered via Workers AI fallback"
