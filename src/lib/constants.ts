@@ -13,7 +13,7 @@ export const SITE = {
   // The WhatsApp/mobile line is Boyd Littleford's — named on the footer & contact.
   contactName: "Boyd Littleford",
   email: "boyd@virtrust.com",
-  address: "4 Fleetwood Rd, Harare, Zimbabwe",
+  address: "7 Normandy Rd, Avondale, Harare, Zimbabwe",
   hours: "Mon–Fri 8:00–17:00 · Sat 9:00–13:00",
   // Placeholder credential — confirm/replace with the agency's real registration.
   registration: "Registered estate agents — Harare, Zimbabwe",

@@ -28,7 +28,8 @@ export function suburbCoords(name: string | null | undefined) {
   return name ? (SUBURB_COORDS[name] ?? null) : null;
 }
 
-/** Office location (4 Fleetwood Rd, Harare) — used for the contact-page map.
- *  Directions links use the address string for exact geocoding; these coords
- *  centre the embedded map on Fleetwood Road. */
-export const OFFICE_COORDS = { lat: -17.7922, lng: 31.0524 };
+/** Office location (7 Normandy Rd, Avondale, Harare) — used for the contact-page
+ *  map. Directions links use the address string so Google/Waze geocode the house
+ *  number themselves; these coords just centre the embedded map on Normandy Road.
+ *  Source: OpenStreetMap (Normandy Road, Avondale, Harare). */
+export const OFFICE_COORDS = { lat: -17.79244, lng: 31.04598 };

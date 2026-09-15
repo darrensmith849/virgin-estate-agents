@@ -66,7 +66,7 @@ const orgSchema = {
   priceRange: "$$$",
   address: {
     "@type": "PostalAddress",
-    streetAddress: "4 Fleetwood Road",
+    streetAddress: "7 Normandy Road",
     addressLocality: SITE.city,
     addressCountry: "ZW",
   },
