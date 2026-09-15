@@ -8,6 +8,7 @@ import { enquiries, listings } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { enquirySchema } from "@/lib/validations";
 import { withinRateLimit } from "@/lib/rate-limit";
+import { sendEnquiryEmails } from "@/lib/email";
 import { whatsappLink } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 
@@ -73,6 +74,18 @@ export async function createEnquiry(
   // Surface the new enquiry (and its unread badge) in the admin area promptly.
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin");
+
+  // Notify by email as well, when Cloudflare email is configured. This never
+  // throws and no-ops when unset, so the WhatsApp handoff below stays the
+  // dependable path and an email outage can't fail the enquiry.
+  await sendEnquiryEmails({
+    name,
+    email,
+    phone,
+    message,
+    listingTitle: listing?.title ?? null,
+    listingUrl: listing ? `${SITE.url}/listings/${listing.slug}` : null,
+  });
 
   // The enquiry is safely recorded in the admin inbox; the WhatsApp link is the
   // fast lane — one tap opens a chat to the agency with the details filled in,
