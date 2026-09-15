@@ -904,6 +904,12 @@
 }
 
 /* ─── Premium map (Leaflet + CARTO Positron) ───────────────────────────── */
+/* OpenStreetMap tiles are full-colour; desaturate just the tile pane to keep
+   the muted, monochrome basemap the design calls for. Markers and popups sit
+   in separate panes, so they keep their brand colour. */
+.leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.92) brightness(1.06);
+}
 .leaflet-container {
   font-family: var(--font-inter), system-ui, sans-serif;
   background: #f3f1ea;

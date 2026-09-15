@@ -81,15 +81,15 @@ export function ListingsMap({ items }: { items: MapListing[] }) {
       mapRef.current = map;
       map.attributionControl.setPrefix("");
 
-      L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        {
-          subdomains: "abcd",
-          maxZoom: 20,
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        },
-      ).addTo(map);
+      // Standard OpenStreetMap tiles: free, no API key, no usage gate. CARTO's
+      // basemaps now stamp "API KEY REQUIRED" across unauthenticated tiles, so
+      // they can't be used token-less. The muted, monochrome look the design
+      // wants is restored with a CSS filter on .leaflet-tile-pane instead.
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
 
       for (const l of withCoords) {
         const marker = L.marker([l.latitude!, l.longitude!], {
