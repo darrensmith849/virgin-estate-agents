@@ -23,12 +23,13 @@ const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB per video
 const JUNK_FILENAME =
   /^(whatsapp[ _-]?image|whatsapp[ _-]?video|img|image|photo|pxl|dsc|dcim|screenshot|signal-|scaled_|received_|fb_img|inshot)[ _-]?[\d._-]*$/i;
 
-function altFor(listingTitle: string | null, filename: string, index: number, total: number) {
+function altFor(knownListing: boolean, filename: string): string | null {
+  // When the image belongs to a listing, store nothing: every render site falls
+  // back to the listing's current title (`alt ?? title`), so the alt text tracks
+  // renames instead of freezing whatever the title happened to be at upload.
+  if (knownListing) return null;
   const base = filename.replace(/\.[^.]+$/, "").trim();
-  if (listingTitle) {
-    return total > 1 ? `${listingTitle} — photo ${index + 1}` : listingTitle;
-  }
-  if (!base || JUNK_FILENAME.test(base) || /^\d[\d._\s-]*$/.test(base)) return "";
+  if (!base || JUNK_FILENAME.test(base) || /^\d[\d._\s-]*$/.test(base)) return null;
   return base.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
@@ -82,13 +83,13 @@ export async function POST(req: Request) {
     }
 
     const storage = await getStorage();
-    const uploaded: { key: string; url: string; alt: string }[] = [];
+    const uploaded: { key: string; url: string; alt: string | null }[] = [];
 
-    for (const [i, file] of files.entries()) {
+    for (const file of files) {
       const buf = await file.arrayBuffer();
       const key = storageKey(prefix, file.name);
       const res = await storage.put(key, buf, file.type || (isVideoUpload ? "video/mp4" : "image/jpeg"));
-      uploaded.push({ ...res, alt: altFor(listingTitle, file.name, i, files.length) });
+      uploaded.push({ ...res, alt: altFor(Boolean(listingTitle), file.name) });
     }
 
     if (uploaded.length === 0) {

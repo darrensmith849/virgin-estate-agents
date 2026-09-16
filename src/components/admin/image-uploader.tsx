@@ -43,7 +43,7 @@ export function ImageUploader({
     id: string,
     files: File[],
     mediaType: "image" | "video",
-  ): Promise<{ key: string; url: string; alt: string }[]> {
+  ): Promise<{ key: string; url: string; alt: string | null }[]> {
     const fd = new FormData();
     files.forEach((f) => fd.append("files", f));
     fd.append("prefix", `listings/${id}`);

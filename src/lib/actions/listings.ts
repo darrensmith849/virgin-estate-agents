@@ -184,7 +184,7 @@ export async function deleteListing(id: string): Promise<void> {
 
 export async function addListingImages(
   listingId: string,
-  images: { key: string; url: string; alt?: string }[],
+  images: { key: string; url: string; alt?: string | null }[],
 ) {
   const user = await getCurrentUser();
   if (!user || images.length === 0) return [];
@@ -315,7 +315,7 @@ async function listingVideoKeys(listingId: string): Promise<{ key: string }[]> {
 
 export async function addListingVideos(
   listingId: string,
-  videos: { key: string; url: string; title?: string }[],
+  videos: { key: string; url: string; title?: string | null }[],
 ) {
   const user = await getCurrentUser();
   if (!user || videos.length === 0) return [];
