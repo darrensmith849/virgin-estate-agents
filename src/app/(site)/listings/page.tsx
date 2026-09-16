@@ -6,7 +6,9 @@ import { Container } from "@/components/ui/container";
 import { ListingCard } from "@/components/listings/listing-card";
 import { ListingsFilters } from "@/components/listings/listings-filters";
 import { ListingsMap } from "@/components/listings/listings-map";
-import { listPublicListings } from "@/lib/data/listings";
+import { listPropertyTypesInUse, listPublicListings } from "@/lib/data/listings";
+import { getAgencySettings } from "@/lib/data/settings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -30,6 +32,13 @@ export default async function ListingsPage({
   const sp = await searchParams;
   const view = sp.view === "map" ? "map" : "list";
 
+  const [settings, propertyTypes] = await Promise.all([
+    getAgencySettings(),
+    listPropertyTypesInUse(),
+  ]);
+  const vocabulary = resolveVocabulary(settings);
+  const sort = (sp.sort as "newest" | "price_asc" | "price_desc") ?? "newest";
+
   const { items, total, page, pageCount } = await listPublicListings({
     kind: sp.kind === "sale" || sp.kind === "rent" ? sp.kind : undefined,
     propertyType: sp.type,
@@ -38,7 +47,7 @@ export default async function ListingsPage({
     maxPrice: num(sp.maxPrice),
     minBeds: num(sp.minBeds),
     q: sp.q,
-    sort: (sp.sort as "newest" | "price_asc" | "price_desc") ?? "newest",
+    sort,
     page: num(sp.page) ?? 1,
     perPage: view === "map" ? 60 : 12,
   });
@@ -59,7 +68,7 @@ export default async function ListingsPage({
         </p>
       </header>
 
-      <ListingsFilters />
+      <ListingsFilters propertyTypes={propertyTypes} />
 
       <div className="mt-8">
         {items.length === 0 ? (
@@ -86,11 +95,58 @@ export default async function ListingsPage({
             }))}
           />
         ) : (
-          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((listing, i) => (
-              <ListingCard key={listing.id} listing={listing} priority={i < 3} />
-            ))}
-          </div>
+          (() => {
+            // Group the page into "for sale" then "to rent" so the two never
+            // interleave. An explicit price sort keeps one continuous run —
+            // splitting it would contradict what was asked for.
+            const grouped = sort === "newest";
+            if (!grouped) {
+              return (
+                <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+                  {items.map((listing, i) => (
+                    <ListingCard key={listing.id} listing={listing} priority={i < 3} />
+                  ))}
+                </div>
+              );
+            }
+
+            const groups = (["sale", "rent"] as const)
+              .map((kind) => ({
+                kind,
+                label: vocabulary.kindLabels[kind],
+                rows: items.filter((l) => l.kind === kind),
+              }))
+              .filter((g) => g.rows.length > 0);
+
+            let rendered = 0;
+            return (
+              <div className="space-y-12">
+                {groups.map((group) => (
+                  <section key={group.kind}>
+                    {/* Only worth a heading when both kinds are on the page. */}
+                    {groups.length > 1 && (
+                      <h2 className="mb-5 flex items-baseline gap-3 text-xl">
+                        {group.label}
+                        <span className="text-sm font-normal text-muted">
+                          {group.rows.length}{" "}
+                          {group.rows.length === 1 ? "property" : "properties"}
+                        </span>
+                      </h2>
+                    )}
+                    <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+                      {group.rows.map((listing) => (
+                        <ListingCard
+                          key={listing.id}
+                          listing={listing}
+                          priority={rendered++ < 3}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            );
+          })()
         )}
       </div>
 

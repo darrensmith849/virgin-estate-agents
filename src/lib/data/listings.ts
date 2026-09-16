@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-o
 import { db } from "@/db";
 import { listings, listingImages, listingVideos } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
+import { formatPropertyType } from "@/lib/vocabulary";
 import { safeRead } from "./_safe";
 
 /** Videos for a listing, tolerant of the table not existing yet. */
@@ -51,8 +52,10 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
 
   const conditions = [inArray(listings.status, [...PUBLIC_STATUSES])];
   if (filters.kind) conditions.push(eq(listings.kind, filters.kind));
+  // Legacy rows hold the old lowercase slugs ("house") while anything typed
+  // since is stored as written ("House"), so match without case.
   if (filters.propertyType)
-    conditions.push(eq(listings.propertyType, filters.propertyType as never));
+    conditions.push(sql`lower(${listings.propertyType}) = lower(${filters.propertyType})`);
   if (filters.suburb) conditions.push(eq(listings.suburb, filters.suburb));
   if (filters.minPrice) conditions.push(gte(listings.price, filters.minPrice));
   if (filters.maxPrice) conditions.push(lte(listings.price, filters.maxPrice));
@@ -69,12 +72,17 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
   }
 
   const where = and(...conditions);
+  // Default order groups the page: everything for sale first, then everything
+  // to rent, newest first within each. `kind` is a pgEnum declared as
+  // ["sale", "rent"], and Postgres sorts enums by declaration order, so `asc`
+  // gives sale-then-rent without a CASE. An explicit price sort is left alone —
+  // someone sorting by price wants one continuous run, not two.
   const orderBy =
     filters.sort === "price_asc"
       ? [asc(listings.price)]
       : filters.sort === "price_desc"
         ? [desc(listings.price)]
-        : [desc(listings.publishedAt), desc(listings.createdAt)];
+        : [asc(listings.kind), desc(listings.publishedAt), desc(listings.createdAt)];
 
   return safeRead(
     async () => {
@@ -220,4 +228,28 @@ export async function getPublicListingSlugs() {
         .where(inArray(listings.status, [...PUBLIC_STATUSES])),
     [] as { slug: string; updatedAt: Date }[],
   );
+}
+
+/**
+ * The property types that actually appear on public listings, for the filter
+ * dropdowns. Driven by the data rather than a fixed list, so a type the agency
+ * invents is immediately filterable — and one nobody uses doesn't clutter the
+ * menu. Old slugs and new free text are folded together by display name.
+ */
+export async function listPropertyTypesInUse(): Promise<string[]> {
+  return safeRead(async () => {
+    const rows = await db
+      .selectDistinct({ propertyType: listings.propertyType })
+      .from(listings)
+      .where(inArray(listings.status, [...PUBLIC_STATUSES]));
+
+    const seen = new Map<string, string>();
+    for (const { propertyType } of rows) {
+      const label = formatPropertyType(propertyType);
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (!seen.has(key)) seen.set(key, label);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, []);
 }
