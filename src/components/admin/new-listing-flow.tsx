@@ -10,6 +10,7 @@ import {
 } from "@/lib/actions/listings";
 import { ListingForm } from "@/components/admin/listing-form";
 import { ImageUploader } from "@/components/admin/image-uploader";
+import type { Vocabulary } from "@/lib/vocabulary";
 
 /**
  * The whole "new listing" experience on a single page: the media uploader is
@@ -17,7 +18,13 @@ import { ImageUploader } from "@/components/admin/image-uploader";
  * hitting Create) creates the listing behind the scenes; everything after that
  * saves to the same record — no navigation to a separate edit page.
  */
-export function NewListingFlow({ agents }: { agents: Pick<Agent, "id" | "name">[] }) {
+export function NewListingFlow({
+  agents,
+  vocabulary,
+}: {
+  agents: Pick<Agent, "id" | "name">[];
+  vocabulary: Vocabulary;
+}) {
   const [listingId, setListingId] = useState<string | null>(null);
 
   // Called by the uploader the first time media is added, before the details
@@ -42,6 +49,7 @@ export function NewListingFlow({ agents }: { agents: Pick<Agent, "id" | "name">[
       <ListingForm
         action={listingId ? updateListing.bind(null, listingId) : createListing}
         agents={agents}
+        vocabulary={vocabulary}
         submitLabel={listingId ? "Save changes" : "Create listing"}
       />
     </div>

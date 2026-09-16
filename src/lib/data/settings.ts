@@ -22,6 +22,10 @@ const FALLBACK_SETTINGS: typeof agencySettings.$inferSelect = {
   heroHeadline: null,
   heroSubheadline: null,
   heroImageUrl: null,
+  specLabels: null,
+  kindLabels: null,
+  featureOptions: null,
+  propertyTypeOptions: null,
   updatedAt: new Date(0),
 };
 

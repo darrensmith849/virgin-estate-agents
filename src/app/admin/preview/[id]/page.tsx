@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/dal";
 import { getListingById, getSimilarListings } from "@/lib/data/listings";
+import { getAgencySettings } from "@/lib/data/settings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { ListingDetail } from "@/components/listings/listing-detail";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
@@ -48,7 +50,12 @@ export default async function PreviewListingPage({
       </div>
       <SiteHeader />
       <main className="ve-content-shell flex-1">
-        <ListingDetail listing={listing} similar={similar} preview />
+        <ListingDetail
+          listing={listing}
+          similar={similar}
+          vocabulary={resolveVocabulary(await getAgencySettings())}
+          preview
+        />
         <SiteFooter />
       </main>
     </>

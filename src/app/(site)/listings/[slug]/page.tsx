@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getListingBySlug, getSimilarListings } from "@/lib/data/listings";
+import { getAgencySettings } from "@/lib/data/settings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { ListingDetail } from "@/components/listings/listing-detail";
 import { formatPrice } from "@/lib/utils";
 
@@ -42,11 +44,20 @@ export default async function ListingDetailPage({
   const listing = await getListingBySlug(slug);
   if (!listing) notFound();
 
-  const similar = await getSimilarListings(listing.id, {
-    suburb: listing.suburb,
-    propertyType: listing.propertyType,
-    limit: 3,
-  });
+  const [similar, settings] = await Promise.all([
+    getSimilarListings(listing.id, {
+      suburb: listing.suburb,
+      propertyType: listing.propertyType,
+      limit: 3,
+    }),
+    getAgencySettings(),
+  ]);
 
-  return <ListingDetail listing={listing} similar={similar} />;
+  return (
+    <ListingDetail
+      listing={listing}
+      similar={similar}
+      vocabulary={resolveVocabulary(settings)}
+    />
+  );
 }

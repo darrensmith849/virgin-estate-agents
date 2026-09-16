@@ -8,6 +8,31 @@ import { agencySettings } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getAgencySettings } from "@/lib/data/settings";
 import { settingsSchema } from "@/lib/validations";
+import { DEFAULT_KIND_LABELS, DEFAULT_SPEC_LABELS } from "@/lib/constants";
+
+/** Collect `prefix_<key>` inputs into an object, keeping only real overrides.
+ *  A blank box means "use the default", so it is omitted rather than stored. */
+function collectLabels(
+  formData: FormData,
+  prefix: string,
+  keys: readonly string[],
+): Record<string, string> | null {
+  const out: Record<string, string> = {};
+  for (const key of keys) {
+    const value = String(formData.get(`${prefix}_${key}`) ?? "").trim();
+    if (value) out[key] = value;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** One-per-line textarea into a clean list; empty means "use the defaults". */
+function collectList(formData: FormData, field: string): string[] | null {
+  const lines = String(formData.get(field) ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.length ? lines : null;
+}
 
 export type SettingsFormState =
   | { ok?: boolean; error?: string; fieldErrors?: Record<string, string[]> }
@@ -32,6 +57,10 @@ export async function updateSettings(
     linkedin: formData.get("linkedin"),
     heroHeadline: formData.get("heroHeadline"),
     heroSubheadline: formData.get("heroSubheadline"),
+    specLabels: collectLabels(formData, "specLabel", Object.keys(DEFAULT_SPEC_LABELS)),
+    kindLabels: collectLabels(formData, "kindLabel", Object.keys(DEFAULT_KIND_LABELS)),
+    featureOptions: collectList(formData, "featureOptions"),
+    propertyTypeOptions: collectList(formData, "propertyTypeOptions"),
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };

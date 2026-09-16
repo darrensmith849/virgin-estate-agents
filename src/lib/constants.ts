@@ -79,6 +79,42 @@ export const LISTING_STATUSES = [
 ] as const;
 
 /** Feature tags relevant to Zimbabwean property. */
+/* -------------------------------------------------------------------------- */
+/*  Editable vocabulary defaults                                               */
+/*                                                                             */
+/*  These are the fallbacks. The agency can override every one of them from     */
+/*  admin Settings; see src/lib/vocabulary.ts for the merge.                    */
+/* -------------------------------------------------------------------------- */
+
+/** Labels for the fixed numeric specs on a listing. */
+export const DEFAULT_SPEC_LABELS = {
+  bedrooms: "Bedrooms",
+  bathrooms: "Bathrooms",
+  garages: "Garages",
+  landSize: "Land size",
+  floorSize: "Floor area",
+} as const;
+
+export type SpecLabelKey = keyof typeof DEFAULT_SPEC_LABELS;
+
+/** Wording for the two structural listing kinds. The kinds themselves are fixed
+ *  (they drive rent periods, grouping and filters) but the wording is not. */
+export const DEFAULT_KIND_LABELS = {
+  sale: "For Sale",
+  rent: "To Rent",
+} as const;
+
+/** Seeded suggestions for the free-text property type field. */
+export const PROPERTY_TYPE_SUGGESTIONS = [
+  "House",
+  "Apartment",
+  "Townhouse",
+  "Cluster home",
+  "Stand / Land",
+  "Commercial",
+  "Farm / Smallholding",
+] as const;
+
 export const COMMON_FEATURES = [
   "Borehole",
   "Solar / inverter system",

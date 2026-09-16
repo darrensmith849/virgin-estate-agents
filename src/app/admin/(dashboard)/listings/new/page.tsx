@@ -2,13 +2,19 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { listAllAgents } from "@/lib/data/agents";
+import { getAgencySettings } from "@/lib/data/settings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { NewListingFlow } from "@/components/admin/new-listing-flow";
 import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata = { title: "New listing" };
 
 export default async function NewListingPage() {
-  const agents = await listAllAgents();
+  const [agents, settings] = await Promise.all([
+    listAllAgents(),
+    getAgencySettings(),
+  ]);
+  const vocabulary = resolveVocabulary(settings);
 
   return (
     <>
@@ -22,7 +28,7 @@ export default async function NewListingPage() {
         title="New listing"
         description="Fill in the details and add photos — all on this page."
       />
-      <NewListingFlow agents={agents} />
+      <NewListingFlow agents={agents} vocabulary={vocabulary} />
     </>
   );
 }

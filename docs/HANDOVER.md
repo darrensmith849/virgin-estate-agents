@@ -190,6 +190,25 @@ and all checks pass.
 
 ---
 
+## 7b. Uploaded media on the VPS
+
+Uploads are written to `public/uploads` and served at `/uploads/*`. On the
+server that path is a **bind mount** of `/srv/uploads/virgin`, so media lives
+outside the deploy tree and survives an rsync deploy:
+
+```
+/srv/uploads/virgin /srv/node/virgin/public/uploads none bind 0 0   # /etc/fstab
+```
+
+**Do not make this a symlink.** It was one until Next 16.2.12, whose Turbopack
+build refuses symlinks that point outside the project root and fails the whole
+build with "points out of the filesystem root". A bind mount looks like a real
+directory and builds fine.
+
+Two things follow from uploads being on local disk rather than R2:
+- Exclude `public/uploads` from any deploy sync, or a deploy will delete media.
+- It is not covered by the database backup; back up `/srv/uploads/virgin` too.
+
 ## 8. Future: moving to a VPS
 
 The app is portable by design. To migrate off Cloudflare later:

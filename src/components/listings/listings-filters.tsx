@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, Map as MapIcon } from "lucide-react";
 
 import { Select } from "@/components/ui/form";
-import { HARARE_SUBURBS, PROPERTY_TYPES } from "@/lib/constants";
+import { HARARE_SUBURBS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const PRICE_OPTS = [
@@ -17,7 +17,12 @@ const PRICE_OPTS = [
   { label: "$1m", value: "1000000" },
 ];
 
-export function ListingsFilters() {
+export function ListingsFilters({
+  propertyTypes,
+}: {
+  /** Types actually in use, so agency-invented types are filterable. */
+  propertyTypes: string[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -111,9 +116,9 @@ export function ListingsFilters() {
           onChange={(e) => update({ type: e.target.value })}
         >
           <option value="">Any type</option>
-          {PROPERTY_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
+          {propertyTypes.map((t) => (
+            <option key={t} value={t}>
+              {t}
             </option>
           ))}
         </Select>

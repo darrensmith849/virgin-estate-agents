@@ -31,15 +31,13 @@ export const listingSchema = z.object({
   description: z.string().trim().default(""),
   status: z.enum(["draft", "for_sale", "under_offer", "sold"]),
   kind: z.enum(["sale", "rent"]),
-  propertyType: z.enum([
-    "house",
-    "apartment",
-    "townhouse",
-    "cluster",
-    "stand",
-    "commercial",
-    "farm",
-  ]),
+  // Free text since the agency names its own types. Capped to the column width;
+  // the built-in list is offered as suggestions, not enforced.
+  propertyType: z
+    .string()
+    .trim()
+    .min(1, "Choose or type a property type")
+    .max(60, "That property type is too long"),
   price: z.coerce.number().int().min(0, "Price can't be negative").default(0),
   rentPeriod: optionalString,
   bedrooms: z.coerce.number().int().min(0).default(0),
@@ -91,6 +89,13 @@ export const settingsSchema = z.object({
   linkedin: optionalString,
   heroHeadline: optionalString,
   heroSubheadline: optionalString,
+
+  // Agency-editable wording. Each is nullable: null restores the built-in
+  // default rather than storing an empty label.
+  specLabels: z.record(z.string(), z.string().trim().max(40)).nullish(),
+  kindLabels: z.record(z.string(), z.string().trim().max(40)).nullish(),
+  featureOptions: z.array(z.string().trim().min(1).max(80)).max(100).nullish(),
+  propertyTypeOptions: z.array(z.string().trim().min(1).max(60)).max(100).nullish(),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
 

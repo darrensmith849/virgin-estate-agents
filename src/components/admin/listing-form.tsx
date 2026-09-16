@@ -1,25 +1,22 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Save } from "lucide-react";
+import { Plus, Save, X } from "lucide-react";
 
 import type { ListingFormState } from "@/lib/actions/listings";
 import type { Agent, Listing } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
-import {
-  COMMON_FEATURES,
-  HARARE_SUBURBS,
-  LISTING_KINDS,
-  LISTING_STATUSES,
-  PROPERTY_TYPES,
-} from "@/lib/constants";
+import { HARARE_SUBURBS, LISTING_STATUSES } from "@/lib/constants";
+import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 
 type Props = {
   action: (state: ListingFormState, formData: FormData) => Promise<ListingFormState>;
   agents: Pick<Agent, "id" | "name">[];
   listing?: Listing;
   submitLabel?: string;
+  /** The agency's own wording and option lists (admin Settings). */
+  vocabulary: Vocabulary;
 };
 
 function Section({
@@ -45,13 +42,38 @@ export function ListingForm({
   agents,
   listing,
   submitLabel = "Save listing",
+  vocabulary,
 }: Props) {
   const [state, formAction, pending] = useActionState<ListingFormState, FormData>(
     action,
     undefined,
   );
   const fe = state?.fieldErrors ?? {};
-  const features = (listing?.features as string[] | undefined) ?? [];
+  const saved = (listing?.features as string[] | undefined) ?? [];
+  // Offer the agency's list plus anything already saved on this listing, so a
+  // one-off feature added last month doesn't silently vanish on the next edit.
+  const [featureOptions, setFeatureOptions] = useState<string[]>(() => {
+    const seen = new Set(vocabulary.featureOptions.map((f) => f.toLowerCase()));
+    return [...vocabulary.featureOptions, ...saved.filter((f) => !seen.has(f.toLowerCase()))];
+  });
+  const [checked, setChecked] = useState<string[]>(saved);
+  const [newFeature, setNewFeature] = useState("");
+
+  function addFeature() {
+    const value = newFeature.trim();
+    if (!value) return;
+    const exists = featureOptions.find((f) => f.toLowerCase() === value.toLowerCase());
+    if (!exists) setFeatureOptions((prev) => [...prev, value]);
+    const name = exists ?? value;
+    setChecked((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setNewFeature("");
+  }
+
+  function toggleFeature(name: string) {
+    setChecked((prev) =>
+      prev.includes(name) ? prev.filter((f) => f !== name) : [...prev, name],
+    );
+  }
   const [kind, setKind] = useState<string>(listing?.kind ?? "sale");
   const [status, setStatus] = useState<string>(listing?.status ?? "draft");
   const isRent = kind === "rent";
@@ -110,25 +132,31 @@ export function ListingForm({
                 value={kind}
                 onChange={(e) => setKind(e.target.value)}
               >
-                {LISTING_KINDS.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
+                <option value="sale">{vocabulary.kindLabels.sale}</option>
+                <option value="rent">{vocabulary.kindLabels.rent}</option>
               </Select>
             </Field>
-            <Field label="Property type" htmlFor="propertyType">
-              <Select
+            <Field
+              label="Property type"
+              htmlFor="propertyType"
+              error={fe.propertyType?.[0]}
+            >
+              {/* Free text with suggestions — pick one of the agency's types or
+                  type anything else. Legacy rows hold slugs ("house"), so the
+                  stored value is shown in its display form. */}
+              <Input
                 id="propertyType"
                 name="propertyType"
-                defaultValue={listing?.propertyType ?? "house"}
-              >
-                {PROPERTY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
+                list="propertyTypeOptions"
+                autoComplete="off"
+                defaultValue={formatPropertyType(listing?.propertyType) || ""}
+                placeholder="House, Apartment, Warehouse…"
+              />
+              <datalist id="propertyTypeOptions">
+                {vocabulary.propertyTypeOptions.map((t) => (
+                  <option key={t} value={t} />
                 ))}
-              </Select>
+              </datalist>
             </Field>
           </div>
           <Field label="Description" htmlFor="description">
@@ -231,20 +259,56 @@ export function ListingForm({
         </div>
       </Section>
 
-      <Section title="Features">
+      <Section
+        title="Features"
+        description="Tick what applies, or add anything that isn't listed. Edit the standard list in Settings."
+      >
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {COMMON_FEATURES.map((f) => (
-            <label key={f} className="flex items-center gap-2.5 text-sm text-ink-soft">
+          {featureOptions.map((f) => (
+            <label key={f} className="group flex items-center gap-2.5 text-sm text-ink-soft">
               <input
                 type="checkbox"
                 name="features"
                 value={f}
-                defaultChecked={features.includes(f)}
+                checked={checked.includes(f)}
+                onChange={() => toggleFeature(f)}
                 className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30"
               />
-              {f}
+              <span className="flex-1">{f}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setFeatureOptions((prev) => prev.filter((x) => x !== f));
+                  setChecked((prev) => prev.filter((x) => x !== f));
+                }}
+                className="text-muted opacity-0 transition group-hover:opacity-100 hover:text-ink"
+                aria-label={`Remove ${f} from this listing`}
+                title="Remove from this listing"
+              >
+                <X size={14} />
+              </button>
             </label>
           ))}
+        </div>
+
+        <div className="mt-5 flex max-w-md gap-2">
+          <Input
+            value={newFeature}
+            onChange={(e) => setNewFeature(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                // Don't submit the whole listing just because they added one.
+                e.preventDefault();
+                addFeature();
+              }
+            }}
+            placeholder="Add another feature…"
+            aria-label="Add another feature"
+          />
+          <Button type="button" variant="outline" onClick={addFeature}>
+            <Plus size={16} />
+            Add
+          </Button>
         </div>
       </Section>
 

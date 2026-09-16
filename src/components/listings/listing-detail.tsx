@@ -25,16 +25,14 @@ import { ShareButton } from "@/components/listings/share-button";
 import { ViewTracker } from "@/components/listings/view-tracker";
 import { ListingCard } from "@/components/listings/listing-card";
 import { BondCalculator } from "@/components/site/bond-calculator";
-import { PROPERTY_TYPES, SITE } from "@/lib/constants";
+import { SITE } from "@/lib/constants";
+import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 import { slugifySuburb, suburbBlurb } from "@/lib/suburbs";
 import { formatArea, formatPrice } from "@/lib/utils";
 
 export type DetailListing = NonNullable<
   Awaited<ReturnType<typeof getListingBySlug>>
 >;
-
-const typeLabel = (v: string) =>
-  PROPERTY_TYPES.find((t) => t.value === v)?.label ?? v;
 
 /**
  * The full property page. Rendered publicly at `/listings/[slug]` and, for
@@ -47,19 +45,26 @@ export function ListingDetail({
   listing,
   similar,
   preview = false,
+  vocabulary,
 }: {
   listing: DetailListing;
   similar: React.ComponentProps<typeof ListingCard>["listing"][];
   preview?: boolean;
+  /** The agency's own wording for the spec labels. */
+  vocabulary: Vocabulary;
 }) {
-  const isStand = listing.propertyType === "stand";
+  const typeName = formatPropertyType(listing.propertyType);
+  // Bare land has no rooms to report. Property types are free text now, so match
+  // on the words rather than an exact slug ("stand", "Stand / Land", "Vacant land").
+  const isStand = /\b(stand|land|plot)\b/i.test(typeName);
+  const labels = vocabulary.specLabels;
   const stats = [
-    !isStand && { icon: BedDouble, label: "Bedrooms", value: listing.bedrooms },
-    !isStand && { icon: Bath, label: "Bathrooms", value: listing.bathrooms },
-    !isStand && listing.garages > 0 && { icon: Car, label: "Garages", value: listing.garages },
-    listing.floorSizeSqm && { icon: Maximize, label: "Floor area", value: formatArea(listing.floorSizeSqm) },
-    listing.landSizeSqm && { icon: LandPlot, label: "Land", value: formatArea(listing.landSizeSqm) },
-    { icon: Home, label: "Type", value: typeLabel(listing.propertyType) },
+    !isStand && { icon: BedDouble, label: labels.bedrooms, value: listing.bedrooms },
+    !isStand && { icon: Bath, label: labels.bathrooms, value: listing.bathrooms },
+    !isStand && listing.garages > 0 && { icon: Car, label: labels.garages, value: listing.garages },
+    listing.floorSizeSqm && { icon: Maximize, label: labels.floorSize, value: formatArea(listing.floorSizeSqm) },
+    listing.landSizeSqm && { icon: LandPlot, label: labels.landSize, value: formatArea(listing.landSizeSqm) },
+    { icon: Home, label: "Type", value: typeName },
   ].filter(Boolean) as { icon: typeof Home; label: string; value: React.ReactNode }[];
 
   const jsonLd = {

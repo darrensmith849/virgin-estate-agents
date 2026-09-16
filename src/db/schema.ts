@@ -26,15 +26,8 @@ export const listingStatus = pgEnum("listing_status", [
 
 export const listingKind = pgEnum("listing_kind", ["sale", "rent"]);
 
-export const propertyType = pgEnum("property_type", [
-  "house",
-  "apartment",
-  "townhouse",
-  "cluster",
-  "stand",
-  "commercial",
-  "farm",
-]);
+/* property_type was a pgEnum. It is now free text so the agency can name their
+   own property types (see PROPERTY_TYPE_SUGGESTIONS for the seeded options). */
 
 export const enquiryStatus = pgEnum("enquiry_status", [
   "new",
@@ -87,7 +80,7 @@ export const listings = pgTable(
     description: text("description").notNull().default(""),
     status: listingStatus("status").notNull().default("draft"),
     kind: listingKind("kind").notNull().default("sale"),
-    propertyType: propertyType("property_type").notNull().default("house"),
+    propertyType: text("property_type").notNull().default("house"),
 
     // Pricing — USD whole dollars (Zimbabwean property convention).
     price: integer("price").notNull().default(0),
@@ -230,6 +223,13 @@ export const agencySettings = pgTable("agency_settings", {
   heroHeadline: varchar("hero_headline", { length: 255 }),
   heroSubheadline: text("hero_subheadline"),
   heroImageUrl: text("hero_image_url"),
+
+  /* Agency-editable vocabulary. Each falls back to the built-in defaults in
+     constants.ts when null, so an untouched install looks exactly as before. */
+  specLabels: jsonb("spec_labels").$type<Record<string, string>>(),
+  kindLabels: jsonb("kind_labels").$type<Record<string, string>>(),
+  featureOptions: jsonb("feature_options").$type<string[]>(),
+  propertyTypeOptions: jsonb("property_type_options").$type<string[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

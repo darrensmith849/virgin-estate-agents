@@ -15,8 +15,8 @@ import { SellerCta } from "@/components/site/seller-cta";
 import { Faq } from "@/components/site/faq";
 import { StatsBand } from "@/components/site/stats-band";
 import { Testimonials } from "@/components/site/testimonials";
-import { getFeaturedListings } from "@/lib/data/listings";
-import { HARARE_SUBURBS, PROPERTY_TYPES } from "@/lib/constants";
+import { getFeaturedListings, listPropertyTypesInUse } from "@/lib/data/listings";
+import { HARARE_SUBURBS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 // Render at request time so featured listings reflect the live database.
@@ -34,7 +34,10 @@ export const metadata: Metadata = {
 const HERO_IMAGE = "/hero-home.jpg";
 
 export default async function HomePage() {
-  const featured = await getFeaturedListings(6);
+  const [featured, propertyTypes] = await Promise.all([
+    getFeaturedListings(6),
+    listPropertyTypesInUse(),
+  ]);
 
   return (
     <>
@@ -95,9 +98,9 @@ export default async function HomePage() {
                 aria-label="Property type"
               >
                 <option value="">Any type</option>
-                {PROPERTY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {propertyTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
                   </option>
                 ))}
               </select>

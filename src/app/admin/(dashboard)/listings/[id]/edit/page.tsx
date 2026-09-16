@@ -4,6 +4,8 @@ import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
 
 import { getListingById } from "@/lib/data/listings";
 import { listAllAgents } from "@/lib/data/agents";
+import { getAgencySettings } from "@/lib/data/settings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { deleteListing, updateListing } from "@/lib/actions/listings";
 import { ListingForm } from "@/components/admin/listing-form";
 import { ImageUploader } from "@/components/admin/image-uploader";
@@ -22,11 +24,13 @@ export default async function EditListingPage({
   const { id } = await params;
   const { created } = await searchParams;
 
-  const [listing, agents] = await Promise.all([
+  const [listing, agents, settings] = await Promise.all([
     getListingById(id),
     listAllAgents(),
+    getAgencySettings(),
   ]);
   if (!listing) notFound();
+  const vocabulary = resolveVocabulary(settings);
 
   return (
     <>
@@ -93,6 +97,7 @@ export default async function EditListingPage({
           agents={agents}
           listing={listing}
           submitLabel="Save changes"
+          vocabulary={vocabulary}
         />
       </div>
     </>
