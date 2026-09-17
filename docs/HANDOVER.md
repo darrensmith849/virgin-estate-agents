@@ -209,6 +209,50 @@ Two things follow from uploads being on local disk rather than R2:
 - Exclude `public/uploads` from any deploy sync, or a deploy will delete media.
 - It is not covered by the database backup; back up `/srv/uploads/virgin` too.
 
+## 7c. Backups
+
+Nightly at 04:00 UTC via `restic-backup.timer` on `ma130-apps`, into a restic
+repository on Cloudflare R2. Retention is 7 daily, 4 weekly, 6 monthly, shared
+with the other sites on that box.
+
+Covered:
+- **Database** — `pg_dump` into `/srv/backups/virgin/`, added to the nightly
+  job. The database itself lives on a separate server (`10.0.0.2`), not on the
+  app box, so it is not caught by any file backup; without this dump there was
+  no backup of listings, enquiries, agents or settings at all.
+- **App code and config** — `/srv/node/virgin` and `/etc/virgin-prod.env`.
+- **Uploaded media** — `/srv/uploads/virgin`, reached through the bind mount at
+  `/srv/node/virgin/public/uploads`.
+
+Local dumps are kept for 7 days and are root-only (mode 700): they contain
+every enquiry and the admin password hash. Restic keeps the longer history
+off-box.
+
+**Restoring the database**
+
+The dumps are unreadable by the `postgres` user by design, so pipe them in
+rather than using `-f`:
+
+```bash
+sudo -u postgres createdb virgin_restore
+sudo -u postgres psql -d virgin_restore < /srv/backups/virgin/virgin-db-<stamp>.sql
+```
+
+To pull an older dump out of R2 first:
+
+```bash
+set -a; . /root/.restic-env; set +a
+restic snapshots                       # find the snapshot
+restic restore <id> --target /tmp/r --include /srv/backups/virgin
+```
+
+Verified end to end on 2026-09-17: dump restored into a throwaway database with
+no errors and row counts matching production exactly.
+
+**Not covered:** whatever backups the Postgres host at `10.0.0.2` keeps of
+itself — worth confirming separately, since the nightly dump is currently the
+only copy of this data that we control.
+
 ## 8. Future: moving to a VPS
 
 The app is portable by design. To migrate off Cloudflare later:
