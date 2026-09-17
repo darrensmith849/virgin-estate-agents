@@ -6,6 +6,7 @@ import { Loader2, MapPin, Plus, Save, X } from "lucide-react";
 import type { ListingFormState } from "@/lib/actions/listings";
 import type { Agent, Listing } from "@/db/schema";
 import { Button } from "@/components/ui/button";
+import { LocationPicker } from "@/components/admin/location-picker";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { HARARE_SUBURBS, LISTING_STATUSES } from "@/lib/constants";
@@ -438,7 +439,7 @@ export function ListingForm({
 
       <Section
         title="Location"
-        description="Start typing the address and pick it from the list — the map pin is set for you. The coordinates are only there if you want to nudge it."
+        description="Start typing the address and pick it from the list, then drag the pin on the map to the exact spot."
       >
         <div className="space-y-4">
           <Field label="Address" htmlFor="addressLine">
@@ -568,29 +569,50 @@ export function ListingForm({
                 onChange={(e) => setCity(e.target.value)}
               />
             </Field>
-            <Field label="Latitude" htmlFor="latitude" hint="Set when you pick an address">
-              <Input
-                id="latitude"
-                name="latitude"
-                type="number"
-                step="any"
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-                placeholder="—"
-              />
-            </Field>
-            <Field label="Longitude" htmlFor="longitude" hint="Set when you pick an address">
-              <Input
-                id="longitude"
-                name="longitude"
-                type="number"
-                step="any"
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-                placeholder="—"
-              />
-            </Field>
           </div>
+
+          <LocationPicker
+            lat={lat}
+            lng={lng}
+            onChange={({ lat: nextLat, lng: nextLng }) => {
+              setLat(String(nextLat));
+              setLng(String(nextLng));
+              setPinned("Pin placed by hand.");
+            }}
+          />
+
+          {/* The raw numbers still submit with the form and stay editable, but
+              they're tucked away — nobody should need to read a latitude to
+              list a house. */}
+          <details className="rounded-[var(--radius)] border border-line px-3 py-2">
+            <summary className="cursor-pointer text-sm text-muted">
+              Coordinates
+            </summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <Field label="Latitude" htmlFor="latitude">
+                <Input
+                  id="latitude"
+                  name="latitude"
+                  type="number"
+                  step="any"
+                  value={lat}
+                  onChange={(e) => setLat(e.target.value)}
+                  placeholder="—"
+                />
+              </Field>
+              <Field label="Longitude" htmlFor="longitude">
+                <Input
+                  id="longitude"
+                  name="longitude"
+                  type="number"
+                  step="any"
+                  value={lng}
+                  onChange={(e) => setLng(e.target.value)}
+                  placeholder="—"
+                />
+              </Field>
+            </div>
+          </details>
         </div>
       </Section>
 
