@@ -117,7 +117,16 @@ export function ListingForm({
   const skipNextLookup = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  const lookupQuery = [address, suburb, city, "Zimbabwe"]
+  /*
+   * Deliberately excludes the suburb. It is an *output* of geocoding, not an
+   * input: when an existing listing is edited, the saved suburb belongs to the
+   * old address, and feeding it back in makes a perfectly findable street
+   * unfindable — "3 Piers Road, Avondale, Harare" returns nothing because
+   * Piers Road is in Borrowdale, while dropping the suburb finds it at once.
+   * City and country are enough to keep results inside Harare, and choosing a
+   * result fills the suburb in from what was actually matched.
+   */
+  const lookupQuery = [address, city, "Zimbabwe"]
     .map((part) => part.trim())
     .filter(Boolean)
     .join(", ");
@@ -157,7 +166,7 @@ export function ListingForm({
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [address, suburb, city, lookupQuery]);
+  }, [address, city, lookupQuery]);
 
   // Derived rather than stored, so clearing the box hides the list without an
   // extra render pass.
@@ -167,9 +176,15 @@ export function ListingForm({
     skipNextLookup.current = true;
     setLat(hit.lat.toFixed(6));
     setLng(hit.lon.toFixed(6));
-    // Fill these in only when empty, so a deliberate entry is never overwritten.
-    if (hit.suburb && !suburb.trim()) setSuburb(hit.suburb);
-    if (hit.city && !city.trim()) setCity(hit.city);
+    /*
+     * Take the suburb and city from the match rather than preserving whatever
+     * was there. Picking a suggestion is a deliberate statement about where the
+     * property is, and on an existing listing the saved suburb belongs to the
+     * old address — keeping it is how a Borrowdale street ends up filed under
+     * Avondale. Both remain editable afterwards.
+     */
+    if (hit.suburb) setSuburb(hit.suburb);
+    if (hit.city) setCity(hit.city);
     setPinned(`Pinned to ${hit.label}`);
     setSuggestions([]);
     setHighlight(-1);
