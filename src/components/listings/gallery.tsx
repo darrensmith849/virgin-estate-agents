@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { X, ChevronLeft, ChevronRight, Expand, ImageOff } from "lucide-react";
+import { mediaSrc } from "@/lib/media";
 
 type GalleryImage = { url: string; alt: string | null };
 
@@ -46,7 +47,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
     <>
       <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-paper-2">
         <Image
-          src={images[main].url}
+          src={mediaSrc(images[main].url)}
           alt={images[main].alt ?? title}
           fill
           priority
@@ -74,7 +75,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
               }`}
             >
               <Image
-                src={img.url}
+                src={mediaSrc(img.url)}
                 alt={img.alt ?? ""}
                 fill
                 sizes="120px"
@@ -120,7 +121,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
             onClick={(e) => e.stopPropagation()}
           >
             <Image
-              src={images[lightbox].url}
+              src={mediaSrc(images[lightbox].url)}
               alt={images[lightbox].alt ?? title}
               fill
               sizes="100vw"

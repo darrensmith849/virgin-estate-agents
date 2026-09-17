@@ -21,7 +21,7 @@ const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB per video
  * a description.
  */
 const JUNK_FILENAME =
-  /^(whatsapp[ _-]?image|whatsapp[ _-]?video|img|image|photo|pxl|dsc|dcim|screenshot|signal-|scaled_|received_|fb_img|inshot)[ _-]?[\d._-]*$/i;
+  /^(whatsapp|img|image|photo|pxl|dsc|dcim|screenshot|signal|received|fb_img|inshot|scaled)(?![a-z])/i;
 
 function altFor(knownListing: boolean, filename: string): string | null {
   // When the image belongs to a listing, store nothing: every render site falls

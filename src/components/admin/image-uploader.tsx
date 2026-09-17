@@ -13,6 +13,7 @@ import {
   setCoverImage,
 } from "@/lib/actions/listings";
 import { cn } from "@/lib/utils";
+import { mediaSrc } from "@/lib/media";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
@@ -211,7 +212,7 @@ export function ImageUploader({
             )}
           >
             <Image
-              src={img.url}
+              src={mediaSrc(img.url)}
               alt={img.alt ?? ""}
               fill
               sizes="200px"

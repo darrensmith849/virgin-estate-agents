@@ -5,6 +5,7 @@ import { BedDouble, Bath, Maximize, MapPin, ImageOff, ArrowRight } from "lucide-
 import type { Listing } from "@/db/schema";
 import { StatusBadge } from "./status-badge";
 import { formatPrice, formatArea, cn } from "@/lib/utils";
+import { mediaSrc } from "@/lib/media";
 
 export type CardListing = Pick<
   Listing,
@@ -51,7 +52,7 @@ export function ListingCard({
         {cover ? (
           <div className="ve-parallax absolute inset-0">
             <Image
-              src={cover.url}
+              src={mediaSrc(cover.url)}
               alt={cover.alt ?? listing.title}
               fill
               priority={priority}
