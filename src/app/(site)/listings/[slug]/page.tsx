@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getListingBySlug, getSimilarListings } from "@/lib/data/listings";
 import { getAgencySettings } from "@/lib/data/settings";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { resolveVocabulary } from "@/lib/vocabulary";
 import { ListingDetail } from "@/components/listings/listing-detail";
 import { formatPrice } from "@/lib/utils";
@@ -44,13 +45,16 @@ export default async function ListingDetailPage({
   const listing = await getListingBySlug(slug);
   if (!listing) notFound();
 
-  const [similar, settings] = await Promise.all([
+  // Cheap for visitors: with no session cookie this returns null without
+  // touching the database.
+  const [similar, settings, user] = await Promise.all([
     getSimilarListings(listing.id, {
       suburb: listing.suburb,
       propertyType: listing.propertyType,
       limit: 3,
     }),
     getAgencySettings(),
+    getCurrentUser(),
   ]);
 
   return (
@@ -58,6 +62,7 @@ export default async function ListingDetailPage({
       listing={listing}
       similar={similar}
       vocabulary={resolveVocabulary(settings)}
+      isAdmin={Boolean(user)}
     />
   );
 }

@@ -24,6 +24,7 @@ import { AgentCard } from "@/components/listings/agent-card";
 import { EnquiryForm } from "@/components/listings/enquiry-form";
 import { ShareButton } from "@/components/listings/share-button";
 import { ViewTracker } from "@/components/listings/view-tracker";
+import { AdminBar } from "@/components/admin/admin-bar";
 import { ListingCard } from "@/components/listings/listing-card";
 import { BondCalculator } from "@/components/site/bond-calculator";
 import { SITE } from "@/lib/constants";
@@ -47,12 +48,15 @@ export function ListingDetail({
   similar,
   preview = false,
   vocabulary,
+  isAdmin = false,
 }: {
   listing: DetailListing;
   similar: React.ComponentProps<typeof ListingCard>["listing"][];
   preview?: boolean;
   /** The agency's own wording for the spec labels. */
   vocabulary: Vocabulary;
+  /** Set by the page when a signed-in admin is viewing the public site. */
+  isAdmin?: boolean;
 }) {
   const typeName = formatPropertyType(listing.propertyType);
   const labels = vocabulary.specLabels;
@@ -150,6 +154,11 @@ export function ListingDetail({
 
   return (
     <Container className="py-8 sm:py-10">
+      {/* Editing shortcuts for a signed-in admin. The preview route has its own
+          banner, so don't stack a second bar on top of it. */}
+      {isAdmin && !preview && (
+        <AdminBar listingId={listing.id} status={listing.status} />
+      )}
       {!preview && (
         <>
           <script
