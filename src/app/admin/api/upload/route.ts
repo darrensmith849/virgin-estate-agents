@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { listings } from "@/db/schema";
 import { getStorage, storageKey } from "@/lib/storage";
+import { prepareVideo } from "@/lib/video";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per image
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB per video
@@ -31,6 +32,48 @@ function altFor(knownListing: boolean, filename: string): string | null {
   const base = filename.replace(/\.[^.]+$/, "").trim();
   if (!base || JUNK_FILENAME.test(base) || /^\d[\d._\s-]*$/.test(base)) return null;
   return base.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+
+/* Longest edge kept for a stored photo. Comfortably past the largest size the
+ * site ever renders (the gallery tops out around 1920), with room for a
+ * lightbox zoom, while turning a 6MB phone photo into a few hundred KB. */
+const MAX_EDGE = 2400;
+const WEBP_QUALITY = 82;
+
+/**
+ * Re-encode an uploaded photo before it is stored.
+ *
+ * Previously the original went to disk untouched, so a listing held several
+ * megabytes per photo and every view leaned on Next's optimiser to fix it at
+ * request time. Doing it once here means the stored file is already web-sized.
+ *
+ * `rotate()` with no argument applies the EXIF orientation and then drops the
+ * tag, which is what stops phone photos appearing on their side. Metadata is
+ * not carried over — camera EXIF includes GPS coordinates, which have no
+ * business being published on a property listing.
+ *
+ * Falls back to storing the original if anything goes wrong: an unconverted
+ * photo is worth more to the agency than a failed upload.
+ */
+async function optimiseImage(
+  input: ArrayBuffer,
+  filename: string,
+): Promise<{ data: Buffer | ArrayBuffer; filename: string; contentType: string }> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const data = await sharp(Buffer.from(input))
+      .rotate()
+      .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: WEBP_QUALITY })
+      .toBuffer();
+
+    const base = filename.replace(/\.[^.]+$/, "") || "photo";
+    return { data, filename: `${base}.webp`, contentType: "image/webp" };
+  } catch (err) {
+    console.error("[upload] image optimisation failed, storing the original:", err);
+    return { data: input, filename, contentType: "image/jpeg" };
+  }
 }
 
 export async function POST(req: Request) {
@@ -83,12 +126,50 @@ export async function POST(req: Request) {
     }
 
     const storage = await getStorage();
-    const uploaded: { key: string; url: string; alt: string | null }[] = [];
+    const uploaded: {
+      key: string;
+      url: string;
+      alt: string | null;
+      /** Set for videos when a still could be taken. */
+      posterUrl?: string;
+    }[] = [];
 
     for (const file of files) {
       const buf = await file.arrayBuffer();
-      const key = storageKey(prefix, file.name);
-      const res = await storage.put(key, buf, file.type || (isVideoUpload ? "video/mp4" : "image/jpeg"));
+
+      if (isVideoUpload) {
+        const prepared = await prepareVideo(buf, file.name);
+        const key = storageKey(prefix, prepared.filename);
+        const res = await storage.put(key, prepared.data, prepared.contentType);
+        console.log(
+          `[upload] video ${prepared.action}: ${(buf.byteLength / 1048576).toFixed(1)}MB -> ` +
+            `${(prepared.data.byteLength / 1048576).toFixed(1)}MB`,
+        );
+
+        // Store the still alongside the clip, under a matching key, so a
+        // gallery has something to show before anyone presses play.
+        let posterUrl: string | undefined;
+        if (prepared.poster) {
+          const posterRes = await storage.put(
+            key.replace(/\.[^.]+$/, "") + "-poster.webp",
+            prepared.poster.data,
+            prepared.poster.contentType,
+          );
+          posterUrl = posterRes.url;
+        }
+
+        uploaded.push({
+          ...res,
+          alt: altFor(Boolean(listingTitle), file.name),
+          posterUrl,
+        });
+        continue;
+      }
+
+      // Photos are re-encoded to a web-sized WebP.
+      const prepared = await optimiseImage(buf, file.name);
+      const key = storageKey(prefix, prepared.filename);
+      const res = await storage.put(key, prepared.data, prepared.contentType);
       uploaded.push({ ...res, alt: altFor(Boolean(listingTitle), file.name) });
     }
 
