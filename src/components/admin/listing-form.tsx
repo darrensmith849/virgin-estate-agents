@@ -530,7 +530,7 @@ export function ListingForm({
             </p>
           )}
 
-          {noMatch && !searching && address.trim().length >= 4 && (
+          {noMatch && !searching && !pinned && address.trim().length >= 4 && (
             <p className="text-sm text-muted" role="status">
               No match yet.{" "}
               <button
@@ -580,6 +580,17 @@ export function ListingForm({
               setPinned("Pin placed by hand.");
             }}
             onPlace={(place) => {
+              /*
+               * Refuse anything over the border. Reverse geocoding has no
+               * country filter, so a pin nudged into Mozambique used to write
+               * "Guro, Manica" into the city of a Harare listing.
+               */
+              if (place.outsideZimbabwe) {
+                setPinned(
+                  `That pin is outside Zimbabwe (${place.label ?? "unknown place"}) — drag it back and the suburb will update.`,
+                );
+                return;
+              }
               // Suburb and city are facts about where the pin is, so they
               // follow it.
               if (place.suburb) setSuburb(place.suburb);

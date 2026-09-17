@@ -24,6 +24,10 @@ type ReversePlace = {
   addressLine: string | null;
   suburb: string | null;
   city: string | null;
+  /** ISO country code of whatever the pin landed on, lowercase. */
+  countryCode: string | null;
+  /** True when the pin is not in Zimbabwe, so the caller can refuse it. */
+  outsideZimbabwe: boolean;
 };
 
 type Hit = {
@@ -188,6 +192,13 @@ async function reverseLookup(lat: number, lon: number) {
   };
   const a = raw.address ?? {};
   const road = a.road ?? a.pedestrian ?? a.footway ?? null;
+  /*
+   * The forward search is restricted with countrycodes=zw, but reverse has no
+   * such parameter — so a pin dropped over the border comes back as a foreign
+   * place. Left unchecked that wrote "Guro, Manica" into the city of a Harare
+   * listing. Flag it and let the client refuse rather than silently applying.
+   */
+  const countryCode = (a.country_code ?? "").toLowerCase() || null;
   return {
     label: raw.display_name ?? null,
     road,
@@ -196,6 +207,8 @@ async function reverseLookup(lat: number, lon: number) {
     suburb:
       a.suburb ?? a.neighbourhood ?? a.residential ?? a.quarter ?? a.village ?? null,
     city: a.city ?? a.town ?? a.municipality ?? null,
+    countryCode,
+    outsideZimbabwe: countryCode !== null && countryCode !== "zw",
   };
 }
 

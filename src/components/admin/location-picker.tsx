@@ -18,6 +18,17 @@ import "leaflet/dist/leaflet.css";
 /** Harare city centre — where the map opens before a pin exists. */
 const DEFAULT_CENTRE: [number, number] = [-17.8252, 31.0335];
 
+/*
+ * Zimbabwe, padded slightly. The agency only sells here, and without a bound
+ * the map is the whole world: a pin dropped over the eastern border reverse-
+ * geocodes to Mozambique and writes a foreign district into the city. Panning
+ * springs back rather than hard-stopping, so it doesn't feel broken.
+ */
+const ZW_BOUNDS: [[number, number], [number, number]] = [
+  [-22.6, 24.9],
+  [-15.5, 33.2],
+];
+
 type LatLng = { lat: number; lng: number };
 
 export type ResolvedPlace = {
@@ -26,6 +37,8 @@ export type ResolvedPlace = {
   addressLine: string | null;
   suburb: string | null;
   city: string | null;
+  countryCode: string | null;
+  outsideZimbabwe: boolean;
 };
 
 export function LocationPicker({
@@ -85,6 +98,10 @@ export function LocationPicker({
         scrollWheelZoom: true,
         zoomControl: true,
         attributionControl: true,
+        maxBounds: L.latLngBounds(ZW_BOUNDS),
+        maxBoundsViscosity: 0.85,
+        // Far enough out to see the country, not the continent.
+        minZoom: 6,
       });
       mapRef.current = map;
       map.attributionControl.setPrefix("");
