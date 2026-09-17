@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { MapPin, Plus, Save, X } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Loader2, MapPin, Plus, Save, X } from "lucide-react";
 
 import type { ListingFormState } from "@/lib/actions/listings";
 import type { Agent, Listing } from "@/db/schema";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { HARARE_SUBURBS, LISTING_STATUSES } from "@/lib/constants";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
@@ -86,67 +87,120 @@ export function ListingForm({
     setCustomSpecs((prev) => prev.filter((_, i) => i !== index));
   }
 
-  /* Location. Held in state so "Find on map" can fill the coordinates, which
-     staff should never have to work out themselves. */
+  /* Location.
+     The address box is a combobox: typing looks matches up in the background
+     and offers them, so nobody has to know what a latitude is. Lookups fire on
+     a pause rather than per keystroke — Nominatim asks that type-ahead be
+     throttled and cached, and it keeps us well inside its limits. */
   const [address, setAddress] = useState(listing?.addressLine ?? "");
   const [suburb, setSuburb] = useState(listing?.suburb ?? "");
   const [city, setCity] = useState(listing?.city ?? "Harare");
   const [lat, setLat] = useState(listing?.latitude?.toString() ?? "");
   const [lng, setLng] = useState(listing?.longitude?.toString() ?? "");
-  const [locating, setLocating] = useState(false);
-  const [geo, setGeo] = useState<{ ok: boolean; message: string } | null>(null);
 
-  async function findOnMap() {
-    // Suburb and city narrow a bare street name to the right part of Harare.
-    const query = [address, suburb, city, "Zimbabwe"]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(", ");
+  type Suggestion = {
+    lat: number;
+    lon: number;
+    label: string;
+    suburb: string | null;
+    city: string | null;
+  };
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [highlight, setHighlight] = useState(-1);
+  const [searching, setSearching] = useState(false);
+  const [pinned, setPinned] = useState<string | null>(
+    listing?.latitude != null ? "Using the saved pin for this listing." : null,
+  );
+  const [noMatch, setNoMatch] = useState(false);
+  // Set when a suggestion is taken, so choosing one doesn't immediately
+  // re-trigger a lookup for the text we just filled in.
+  const skipNextLookup = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-    if (query.replace(/[, ]/g, "").length < 6) {
-      setGeo({ ok: false, message: "Type an address first." });
+  const lookupQuery = [address, suburb, city, "Zimbabwe"]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+
+  useEffect(() => {
+    if (skipNextLookup.current) {
+      skipNextLookup.current = false;
       return;
     }
+    // Too short to be worth a lookup. Return without touching state — what's
+    // already there is hidden by `showSuggestions` below, and setting state
+    // synchronously in an effect body just causes cascading renders.
+    if (address.trim().length < 4) return;
 
-    setLocating(true);
-    setGeo(null);
+    const timer = setTimeout(async () => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setSearching(true);
+      setNoMatch(false);
+      try {
+        const res = await fetch(
+          `/admin/api/geocode?mode=suggest&q=${encodeURIComponent(lookupQuery)}`,
+          { signal: controller.signal },
+        );
+        const data = (await res.json()) as { hits?: Suggestion[] };
+        const hits = data.hits ?? [];
+        setSuggestions(hits);
+        setHighlight(-1);
+        setNoMatch(hits.length === 0);
+      } catch {
+        // An aborted request is the expected outcome while still typing.
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [address, suburb, city, lookupQuery]);
+
+  // Derived rather than stored, so clearing the box hides the list without an
+  // extra render pass.
+  const showSuggestions = suggestions.length > 0 && address.trim().length >= 4;
+
+  function choose(hit: Suggestion) {
+    skipNextLookup.current = true;
+    setLat(hit.lat.toFixed(6));
+    setLng(hit.lon.toFixed(6));
+    // Fill these in only when empty, so a deliberate entry is never overwritten.
+    if (hit.suburb && !suburb.trim()) setSuburb(hit.suburb);
+    if (hit.city && !city.trim()) setCity(hit.city);
+    setPinned(`Pinned to ${hit.label}`);
+    setSuggestions([]);
+    setHighlight(-1);
+    setNoMatch(false);
+  }
+
+  /** The deeper search, for addresses the quick lookup can't place. */
+  async function searchHarder() {
+    setSearching(true);
+    setNoMatch(false);
     try {
-      const res = await fetch(`/admin/api/geocode?q=${encodeURIComponent(query)}`);
-      const data = (await res.json()) as {
-        hits?: { lat: number; lon: number; label: string }[];
-        exact?: boolean;
-        error?: string;
-      };
-
-      if (!res.ok) {
-        setGeo({ ok: false, message: data.error ?? "Lookup failed. Try again." });
+      const res = await fetch(
+        `/admin/api/geocode?q=${encodeURIComponent(lookupQuery)}`,
+      );
+      const data = (await res.json()) as { hits?: Suggestion[]; exact?: boolean };
+      const hits = data.hits ?? [];
+      if (!hits.length) {
+        setNoMatch(true);
+        setPinned(null);
         return;
       }
-
-      const hit = data.hits?.[0];
-      if (!hit) {
-        setGeo({
-          ok: false,
-          message:
-            "Couldn't find that address. Try adding the suburb, or drop a pin by entering coordinates.",
-        });
-        return;
+      choose(hits[0]);
+      if (!data.exact) {
+        setPinned(
+          `Pinned to ${hits[0].label} — that's the street, not the exact number. Nudge the coordinates below if you need it precise.`,
+        );
       }
-
-      setLat(hit.lat.toFixed(6));
-      setLng(hit.lon.toFixed(6));
-      // Zimbabwean street data rarely carries house numbers, so say plainly
-      // when the pin landed on the street rather than the exact address.
-      setGeo({
-        ok: true,
-        message: data.exact
-          ? `Pinned to ${hit.label}`
-          : `Pinned to ${hit.label} — that's the street, not the exact number. Nudge the coordinates if you need it precise.`,
-      });
     } catch {
-      setGeo({ ok: false, message: "Lookup failed. Check your connection and try again." });
+      setNoMatch(true);
     } finally {
-      setLocating(false);
+      setSearching(false);
     }
   }
 
@@ -369,48 +423,109 @@ export function ListingForm({
 
       <Section
         title="Location"
-        description="Type the address and press Find on map — the pin is placed for you. The coordinates below are filled in automatically; you only need them if you want to nudge the pin."
+        description="Start typing the address and pick it from the list — the map pin is set for you. The coordinates are only there if you want to nudge it."
       >
         <div className="space-y-4">
           <Field label="Address" htmlFor="addressLine">
-            <div className="flex flex-wrap gap-2">
+            <div className="relative">
               <Input
                 id="addressLine"
                 name="addressLine"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={showSuggestions}
+                aria-controls="address-suggestions"
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  highlight >= 0 ? `address-option-${highlight}` : undefined
+                }
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    // Enter in this box means "look it up", not "save the listing".
+                  if (!showSuggestions) {
+                    // Enter here means "look it up", never "submit the listing".
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void searchHarder();
+                    }
+                    return;
+                  }
+                  if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    void findOnMap();
+                    setHighlight((h) => (h + 1) % suggestions.length);
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setHighlight((h) => (h <= 0 ? suggestions.length - 1 : h - 1));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    choose(suggestions[highlight >= 0 ? highlight : 0]);
+                  } else if (e.key === "Escape") {
+                    setSuggestions([]);
+                    setHighlight(-1);
                   }
                 }}
-                placeholder="Street address, e.g. 12 Dulverton Drive"
-                className="min-w-[14rem] flex-1"
+                // A click elsewhere should dismiss the list, but not before a
+                // click on an option has registered.
+                onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+                placeholder="Start typing, e.g. 3 Piers Road"
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void findOnMap()}
-                disabled={locating}
-              >
-                <MapPin size={16} />
-                {locating ? "Finding…" : "Find on map"}
-              </Button>
+
+              {searching && (
+                <Loader2
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted"
+                />
+              )}
+
+              {showSuggestions && (
+                <ul
+                  id="address-suggestions"
+                  role="listbox"
+                  className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-[var(--radius)] border border-line bg-card py-1 shadow-lg"
+                >
+                  {suggestions.map((hit, i) => (
+                    <li key={`${hit.lat},${hit.lon},${i}`}>
+                      <button
+                        type="button"
+                        id={`address-option-${i}`}
+                        role="option"
+                        aria-selected={i === highlight}
+                        onMouseEnter={() => setHighlight(i)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => choose(hit)}
+                        className={cn(
+                          "flex w-full items-start gap-2 px-3 py-2 text-left text-sm",
+                          i === highlight ? "bg-paper-2 text-ink" : "text-ink-soft",
+                        )}
+                      >
+                        <MapPin size={14} className="mt-0.5 shrink-0 text-sand" />
+                        <span>{hit.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </Field>
 
-          {geo && (
-            <p
-              className={
-                geo.ok
-                  ? "text-sm text-brand"
-                  : "text-sm text-muted"
-              }
-              role="status"
-            >
-              {geo.message}
+          {pinned && !showSuggestions && (
+            <p className="text-sm text-brand" role="status">
+              {pinned}
+            </p>
+          )}
+
+          {noMatch && !searching && address.trim().length >= 4 && (
+            <p className="text-sm text-muted" role="status">
+              No match yet.{" "}
+              <button
+                type="button"
+                onClick={() => void searchHarder()}
+                className="text-brand underline underline-offset-2"
+              >
+                Search harder
+              </button>{" "}
+              — Zimbabwean street data often omits house numbers, so this looks
+              for the street itself. Otherwise enter coordinates below.
             </p>
           )}
 
@@ -422,7 +537,7 @@ export function ListingForm({
                 list="suburbs"
                 value={suburb}
                 onChange={(e) => setSuburb(e.target.value)}
-                placeholder="Start typing…"
+                placeholder="Filled in when you pick an address"
               />
               <datalist id="suburbs">
                 {HARARE_SUBURBS.map((s) => (
@@ -438,7 +553,7 @@ export function ListingForm({
                 onChange={(e) => setCity(e.target.value)}
               />
             </Field>
-            <Field label="Latitude" htmlFor="latitude" hint="Filled in by Find on map">
+            <Field label="Latitude" htmlFor="latitude" hint="Set when you pick an address">
               <Input
                 id="latitude"
                 name="latitude"
@@ -449,7 +564,7 @@ export function ListingForm({
                 placeholder="—"
               />
             </Field>
-            <Field label="Longitude" htmlFor="longitude" hint="Filled in by Find on map">
+            <Field label="Longitude" htmlFor="longitude" hint="Set when you pick an address">
               <Input
                 id="longitude"
                 name="longitude"

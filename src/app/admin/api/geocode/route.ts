@@ -18,7 +18,14 @@ const MIN_GAP_MS = 1_100;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 500;
 
-type Hit = { lat: number; lon: number; label: string };
+type Hit = {
+  lat: number;
+  lon: number;
+  label: string;
+  /** Parsed from the result so choosing one can fill the form. */
+  suburb: string | null;
+  city: string | null;
+};
 
 const LAST_CALL = Symbol.for("virgin.geocode.lastCall");
 const CACHE = Symbol.for("virgin.geocode.cache");
@@ -121,10 +128,22 @@ async function lookup(query: string): Promise<Hit[]> {
     lat: string;
     lon: string;
     display_name: string;
+    address?: Record<string, string>;
   }[];
 
   return raw
-    .map((r) => ({ lat: Number(r.lat), lon: Number(r.lon), label: r.display_name }))
+    .map((r) => {
+      const a = r.address ?? {};
+      return {
+        lat: Number(r.lat),
+        lon: Number(r.lon),
+        label: r.display_name,
+        // OSM files Harare's suburbs under several keys depending on the area.
+        suburb:
+          a.suburb ?? a.neighbourhood ?? a.residential ?? a.quarter ?? a.village ?? null,
+        city: a.city ?? a.town ?? a.municipality ?? null,
+      };
+    })
     .filter((h) => Number.isFinite(h.lat) && Number.isFinite(h.lon));
 }
 
@@ -134,12 +153,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const query = (new URL(request.url).searchParams.get("q") ?? "").trim();
-  if (query.length < 3) {
+  const params = new URL(request.url).searchParams;
+  const query = (params.get("q") ?? "").trim();
+
+  /*
+   * "suggest" backs the type-ahead and runs at most two upstream lookups, so a
+   * suggestion arrives in about a second rather than four. "resolve" is the
+   * explicit deeper search and walks the full ladder. Nominatim's policy asks
+   * that type-ahead be heavily throttled and cached, which is why the client
+   * only fires on a pause and every result is cached for a day here.
+   */
+  const suggesting = params.get("mode") === "suggest";
+  // A couple of letters would match half of Harare and waste an upstream call.
+  if (query.length < (suggesting ? 5 : 3)) {
     return NextResponse.json({ hits: [] });
   }
 
-  const key = query.toLowerCase();
+  const key = `${suggesting ? "s" : "r"}:${query.toLowerCase()}`;
   const cached = cache().get(key);
   if (cached && cached.at + CACHE_TTL_MS > Date.now()) {
     return NextResponse.json({ hits: cached.hits, cached: true });
@@ -148,7 +178,14 @@ export async function GET(request: Request) {
   try {
     let hits: Hit[] = [];
     let matched = query;
-    for (const candidate of variants(query)) {
+    // Three steps for suggestions, not two: in Harare the abbreviating step is
+    // frequently the one that matches ("Dulverton Drive" misses, "Dulverton Dr"
+    // hits), so stopping earlier fails precisely where help is needed. Worst
+    // case that is ~2s behind the throttle, which a pause-triggered lookup can
+    // absorb. The loosest step is left to the explicit deeper search, since it
+    // tends to return noise.
+    const ladder = suggesting ? variants(query).slice(0, 3) : variants(query);
+    for (const candidate of ladder) {
       hits = await lookup(candidate);
       if (hits.length) {
         matched = candidate;
