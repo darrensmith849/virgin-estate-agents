@@ -579,6 +579,26 @@ export function ListingForm({
               setLng(String(nextLng));
               setPinned("Pin placed by hand.");
             }}
+            onPlace={(place) => {
+              // Suburb and city are facts about where the pin is, so they
+              // follow it.
+              if (place.suburb) setSuburb(place.suburb);
+              if (place.city) setCity(place.city);
+              /*
+               * The address line is the human's own wording and usually carries
+               * a house number that this data does not have — overwriting
+               * "3 Piers Road" with "Piers Road" would throw the number away.
+               * So fill it only when there is nothing there yet.
+               */
+              setAddress((current) => {
+                if (current.trim() !== "" || !place.addressLine) return current;
+                // Writing the address would otherwise wake the forward lookup
+                // and pop a suggestions list open straight after a drag.
+                skipNextLookup.current = true;
+                return place.addressLine;
+              });
+              if (place.label) setPinned(`Pin is at ${place.label}`);
+            }}
           />
 
           {/* The raw numbers still submit with the form and stay editable, but

@@ -18,6 +18,14 @@ const MIN_GAP_MS = 1_100;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 500;
 
+type ReversePlace = {
+  label: string | null;
+  road: string | null;
+  addressLine: string | null;
+  suburb: string | null;
+  city: string | null;
+};
+
 type Hit = {
   lat: number;
   lon: number;
@@ -32,7 +40,7 @@ const CACHE = Symbol.for("virgin.geocode.cache");
 
 type GlobalStore = typeof globalThis & {
   [LAST_CALL]?: number;
-  [CACHE]?: Map<string, { at: number; hits: Hit[] }>;
+  [CACHE]?: Map<string, { at: number; hits: Hit[]; place?: ReversePlace }>;
 };
 const g = globalThis as GlobalStore;
 
@@ -147,6 +155,50 @@ async function lookup(query: string): Promise<Hit[]> {
     .filter((h) => Number.isFinite(h.lat) && Number.isFinite(h.lon));
 }
 
+
+/*
+ * Reverse lookup: coordinates back to a place, used after the pin is dragged.
+ *
+ * Shares the throttle and cache with the forward lookups, since it is the same
+ * upstream service under the same usage policy.
+ */
+async function reverseLookup(lat: number, lon: number) {
+  await throttle();
+
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lon));
+  url.searchParams.set("format", "json");
+  url.searchParams.set("addressdetails", "1");
+  // 18 is roughly building/street level; higher is noisier, lower loses the road.
+  url.searchParams.set("zoom", "18");
+
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": `${SITE.name} listings admin (${SITE.url})`,
+      "Accept-Language": "en",
+    },
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!res.ok) throw new Error(`upstream ${res.status}`);
+
+  const raw = (await res.json()) as {
+    display_name?: string;
+    address?: Record<string, string>;
+  };
+  const a = raw.address ?? {};
+  const road = a.road ?? a.pedestrian ?? a.footway ?? null;
+  return {
+    label: raw.display_name ?? null,
+    road,
+    // House numbers are rare in this data, but use one when it is there.
+    addressLine: road ? [a.house_number, road].filter(Boolean).join(" ") : null,
+    suburb:
+      a.suburb ?? a.neighbourhood ?? a.residential ?? a.quarter ?? a.village ?? null,
+    city: a.city ?? a.town ?? a.municipality ?? null,
+  };
+}
+
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -163,6 +215,31 @@ export async function GET(request: Request) {
    * that type-ahead be heavily throttled and cached, which is why the client
    * only fires on a pause and every result is cached for a day here.
    */
+  if (params.get("mode") === "reverse") {
+    const lat = Number(params.get("lat"));
+    const lon = Number(params.get("lon"));
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return NextResponse.json({ error: "lat and lon are required" }, { status: 400 });
+    }
+    // Six decimals is ~0.1m, so nudging the pin doesn't miss the cache.
+    const rk = `rev:${lat.toFixed(6)},${lon.toFixed(6)}`;
+    const hit = cache().get(rk);
+    if (hit && hit.at + CACHE_TTL_MS > Date.now()) {
+      return NextResponse.json({ place: hit.place ?? null, cached: true });
+    }
+    try {
+      const place = await reverseLookup(lat, lon);
+      cache().set(rk, { at: Date.now(), hits: [], place });
+      return NextResponse.json({ place });
+    } catch (err) {
+      console.error("[geocode] reverse failed", err);
+      return NextResponse.json(
+        { error: "Could not look that location up." },
+        { status: 502 },
+      );
+    }
+  }
+
   const suggesting = params.get("mode") === "suggest";
   // A couple of letters would match half of Harare and waste an upstream call.
   if (query.length < (suggesting ? 5 : 3)) {

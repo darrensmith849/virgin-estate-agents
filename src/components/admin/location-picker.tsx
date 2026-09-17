@@ -20,20 +20,35 @@ const DEFAULT_CENTRE: [number, number] = [-17.8252, 31.0335];
 
 type LatLng = { lat: number; lng: number };
 
+export type ResolvedPlace = {
+  label: string | null;
+  road: string | null;
+  addressLine: string | null;
+  suburb: string | null;
+  city: string | null;
+};
+
 export function LocationPicker({
   lat,
   lng,
   onChange,
+  onPlace,
 }: {
   /** Current values as held by the form (strings, possibly empty). */
   lat: string;
   lng: string;
   onChange: (next: LatLng) => void;
+  /** Called with whatever place the new pin position resolves to, so the form
+   *  can keep the suburb and city in step with the map. */
+  onPlace?: (place: ResolvedPlace) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<unknown>(null);
   const markerRef = useRef<unknown>(null);
   const onChangeRef = useRef(onChange);
+  const onPlaceRef = useRef(onPlace);
+  /** Aborts an in-flight reverse lookup when the pin moves again. */
+  const revAbort = useRef<AbortController | null>(null);
   /** The last position this component itself reported, so the sync effect can
    *  tell an external change (a chosen address) from its own echo and avoid
    *  yanking the map while someone is dragging. */
@@ -44,6 +59,7 @@ export function LocationPicker({
 
   useEffect(() => {
     onChangeRef.current = onChange;
+    onPlaceRef.current = onPlace;
   });
 
   // Memoised so the sync effect below doesn't see a fresh object every render.
@@ -93,6 +109,25 @@ export function LocationPicker({
         const rounded = { lat: Number(p.lat.toFixed(6)), lng: Number(p.lng.toFixed(6)) };
         selfSet.current = `${rounded.lat},${rounded.lng}`;
         onChangeRef.current(rounded);
+
+        // Ask what is actually at the new position so the suburb and city can
+        // follow the pin rather than describing where it used to be.
+        if (!onPlaceRef.current) return;
+        revAbort.current?.abort();
+        const controller = new AbortController();
+        revAbort.current = controller;
+        void fetch(
+          `/admin/api/geocode?mode=reverse&lat=${rounded.lat}&lon=${rounded.lng}`,
+          { signal: controller.signal },
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.place) onPlaceRef.current?.(d.place);
+          })
+          .catch(() => {
+            // Aborted by a newer drag, or the lookup is unavailable — the pin
+            // itself is already set either way.
+          });
       };
 
       const place = (p: LatLng) => {
