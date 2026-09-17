@@ -28,7 +28,7 @@ export function AdminBar({
   const isDraft = status === "draft";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-start px-4 print:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-start pl-4 pr-20 sm:pr-4 print:hidden">
       <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-card/95 py-2 pl-3 pr-2 shadow-[0_10px_30px_-12px_rgba(15,33,24,0.45)] backdrop-blur">
         <span className="hidden text-xs font-medium uppercase tracking-wide text-muted sm:inline">
           Admin
@@ -48,6 +48,7 @@ export function AdminBar({
           disabled={pending}
           onClick={() => start(() => setListingPublished(listingId, isDraft))}
           title={isDraft ? "Publish to the website" : "Hide from the website"}
+          aria-label={isDraft ? "Publish to the website" : "Hide from the website"}
           className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-sm text-ink transition hover:bg-paper-2 disabled:opacity-50"
         >
           {pending ? (
@@ -57,7 +58,12 @@ export function AdminBar({
           ) : (
             <EyeOff size={14} />
           )}
-          {isDraft ? "Publish" : "Unpublish"}
+          {/* Label hidden on phones: with it, the bar's right edge runs under
+              the floating WhatsApp/assistant buttons at 375px. The title and
+              aria-label keep it clear without the text. */}
+          <span className="hidden sm:inline">
+            {isDraft ? "Publish" : "Unpublish"}
+          </span>
         </button>
 
         <Link
