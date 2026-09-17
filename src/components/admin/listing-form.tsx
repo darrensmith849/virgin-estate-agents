@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Plus, Save, X } from "lucide-react";
+import { MapPin, Plus, Save, X } from "lucide-react";
 
 import type { ListingFormState } from "@/lib/actions/listings";
 import type { Agent, Listing } from "@/db/schema";
@@ -58,6 +58,97 @@ export function ListingForm({
   });
   const [checked, setChecked] = useState<string[]>(saved);
   const [newFeature, setNewFeature] = useState("");
+
+  /* Custom spec rows. Each carries a stable id so React keys survive a removal
+     from the middle — indexes alone would make the wrong row lose its text. */
+  const [customSpecs, setCustomSpecs] = useState<
+    { id: string; label: string; value: string }[]
+  >(() =>
+    ((listing?.customSpecs as { label: string; value: string }[] | undefined) ?? []).map(
+      (row) => ({ ...row, id: crypto.randomUUID() }),
+    ),
+  );
+
+  function addSpec() {
+    setCustomSpecs((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), label: "", value: "" },
+    ]);
+  }
+
+  function updateSpec(index: number, patch: { label?: string; value?: string }) {
+    setCustomSpecs((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  }
+
+  function removeSpec(index: number) {
+    setCustomSpecs((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  /* Location. Held in state so "Find on map" can fill the coordinates, which
+     staff should never have to work out themselves. */
+  const [address, setAddress] = useState(listing?.addressLine ?? "");
+  const [suburb, setSuburb] = useState(listing?.suburb ?? "");
+  const [city, setCity] = useState(listing?.city ?? "Harare");
+  const [lat, setLat] = useState(listing?.latitude?.toString() ?? "");
+  const [lng, setLng] = useState(listing?.longitude?.toString() ?? "");
+  const [locating, setLocating] = useState(false);
+  const [geo, setGeo] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function findOnMap() {
+    // Suburb and city narrow a bare street name to the right part of Harare.
+    const query = [address, suburb, city, "Zimbabwe"]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(", ");
+
+    if (query.replace(/[, ]/g, "").length < 6) {
+      setGeo({ ok: false, message: "Type an address first." });
+      return;
+    }
+
+    setLocating(true);
+    setGeo(null);
+    try {
+      const res = await fetch(`/admin/api/geocode?q=${encodeURIComponent(query)}`);
+      const data = (await res.json()) as {
+        hits?: { lat: number; lon: number; label: string }[];
+        exact?: boolean;
+        error?: string;
+      };
+
+      if (!res.ok) {
+        setGeo({ ok: false, message: data.error ?? "Lookup failed. Try again." });
+        return;
+      }
+
+      const hit = data.hits?.[0];
+      if (!hit) {
+        setGeo({
+          ok: false,
+          message:
+            "Couldn't find that address. Try adding the suburb, or drop a pin by entering coordinates.",
+        });
+        return;
+      }
+
+      setLat(hit.lat.toFixed(6));
+      setLng(hit.lon.toFixed(6));
+      // Zimbabwean street data rarely carries house numbers, so say plainly
+      // when the pin landed on the street rather than the exact address.
+      setGeo({
+        ok: true,
+        message: data.exact
+          ? `Pinned to ${hit.label}`
+          : `Pinned to ${hit.label} — that's the street, not the exact number. Nudge the coordinates if you need it precise.`,
+      });
+    } catch {
+      setGeo({ ok: false, message: "Lookup failed. Check your connection and try again." });
+    } finally {
+      setLocating(false);
+    }
+  }
 
   function addFeature() {
     const value = newFeature.trim();
@@ -206,38 +297,131 @@ export function ListingForm({
         </div>
       </Section>
 
-      <Section title="Specifications">
+      <Section
+        title="Specifications"
+        description="Leave a box empty if it doesn't apply — an empty spec is hidden on the site, while 0 is shown as a real zero. Rename these in Settings, or add your own below."
+      >
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Bedrooms" htmlFor="bedrooms">
-            <Input id="bedrooms" name="bedrooms" type="number" min={0} defaultValue={listing?.bedrooms ?? 0} />
+          <Field label={vocabulary.specLabels.bedrooms} htmlFor="bedrooms">
+            <Input id="bedrooms" name="bedrooms" type="number" min={0} defaultValue={listing?.bedrooms ?? ""} placeholder="—" />
           </Field>
-          <Field label="Bathrooms" htmlFor="bathrooms">
-            <Input id="bathrooms" name="bathrooms" type="number" min={0} defaultValue={listing?.bathrooms ?? 0} />
+          <Field label={vocabulary.specLabels.bathrooms} htmlFor="bathrooms">
+            <Input id="bathrooms" name="bathrooms" type="number" min={0} defaultValue={listing?.bathrooms ?? ""} placeholder="—" />
           </Field>
-          <Field label="Garages" htmlFor="garages">
-            <Input id="garages" name="garages" type="number" min={0} defaultValue={listing?.garages ?? 0} />
+          <Field label={vocabulary.specLabels.garages} htmlFor="garages">
+            <Input id="garages" name="garages" type="number" min={0} defaultValue={listing?.garages ?? ""} placeholder="—" />
           </Field>
-          <Field label="Land size (m²)" htmlFor="landSizeSqm">
-            <Input id="landSizeSqm" name="landSizeSqm" type="number" min={0} defaultValue={listing?.landSizeSqm ?? ""} />
+          <Field label={`${vocabulary.specLabels.landSize} (m²)`} htmlFor="landSizeSqm">
+            <Input id="landSizeSqm" name="landSizeSqm" type="number" min={0} defaultValue={listing?.landSizeSqm ?? ""} placeholder="—" />
           </Field>
-          <Field label="Floor size (m²)" htmlFor="floorSizeSqm">
-            <Input id="floorSizeSqm" name="floorSizeSqm" type="number" min={0} defaultValue={listing?.floorSizeSqm ?? ""} />
+          <Field label={`${vocabulary.specLabels.floorSize} (m²)`} htmlFor="floorSizeSqm">
+            <Input id="floorSizeSqm" name="floorSizeSqm" type="number" min={0} defaultValue={listing?.floorSizeSqm ?? ""} placeholder="—" />
           </Field>
+        </div>
+
+        <div className="mt-6 border-t border-line pt-5">
+          <h3 className="text-sm font-medium text-ink">Other details</h3>
+          <p className="mt-1 text-sm text-muted">
+            Anything else worth listing for this property — loading bays, office
+            suites, hectares. These appear alongside the specs above.
+          </p>
+
+          {customSpecs.length > 0 && (
+            <div className="mt-4 space-y-3">
+              {customSpecs.map((row, i) => (
+                <div key={row.id} className="flex flex-wrap items-center gap-2">
+                  <Input
+                    name="customSpecLabel"
+                    value={row.label}
+                    onChange={(e) => updateSpec(i, { label: e.target.value })}
+                    placeholder="Name, e.g. Loading bays"
+                    aria-label={`Detail ${i + 1} name`}
+                    className="min-w-[10rem] flex-1"
+                  />
+                  <Input
+                    name="customSpecValue"
+                    value={row.value}
+                    onChange={(e) => updateSpec(i, { value: e.target.value })}
+                    placeholder="Value, e.g. 3"
+                    aria-label={`Detail ${i + 1} value`}
+                    className="min-w-[8rem] flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSpec(i)}
+                    aria-label={`Remove ${row.label || `detail ${i + 1}`}`}
+                  >
+                    <X size={16} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Button type="button" variant="outline" className="mt-4" onClick={addSpec}>
+            <Plus size={16} />
+            Add a detail
+          </Button>
         </div>
       </Section>
 
-      <Section title="Location">
+      <Section
+        title="Location"
+        description="Type the address and press Find on map — the pin is placed for you. The coordinates below are filled in automatically; you only need them if you want to nudge the pin."
+      >
         <div className="space-y-4">
           <Field label="Address" htmlFor="addressLine">
-            <Input id="addressLine" name="addressLine" defaultValue={listing?.addressLine ?? ""} placeholder="Street address" />
+            <div className="flex flex-wrap gap-2">
+              <Input
+                id="addressLine"
+                name="addressLine"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    // Enter in this box means "look it up", not "save the listing".
+                    e.preventDefault();
+                    void findOnMap();
+                  }
+                }}
+                placeholder="Street address, e.g. 12 Dulverton Drive"
+                className="min-w-[14rem] flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void findOnMap()}
+                disabled={locating}
+              >
+                <MapPin size={16} />
+                {locating ? "Finding…" : "Find on map"}
+              </Button>
+            </div>
           </Field>
+
+          {geo && (
+            <p
+              className={
+                geo.ok
+                  ? "text-sm text-brand"
+                  : "text-sm text-muted"
+              }
+              role="status"
+            >
+              {geo.message}
+            </p>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Suburb" htmlFor="suburb">
               <Input
                 id="suburb"
                 name="suburb"
                 list="suburbs"
-                defaultValue={listing?.suburb ?? ""}
+                value={suburb}
+                onChange={(e) => setSuburb(e.target.value)}
                 placeholder="Start typing…"
               />
               <datalist id="suburbs">
@@ -247,13 +431,34 @@ export function ListingForm({
               </datalist>
             </Field>
             <Field label="City" htmlFor="city">
-              <Input id="city" name="city" defaultValue={listing?.city ?? "Harare"} />
+              <Input
+                id="city"
+                name="city"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
             </Field>
-            <Field label="Latitude" htmlFor="latitude" hint="For the map pin (optional)">
-              <Input id="latitude" name="latitude" type="number" step="any" defaultValue={listing?.latitude ?? ""} placeholder="-17.75" />
+            <Field label="Latitude" htmlFor="latitude" hint="Filled in by Find on map">
+              <Input
+                id="latitude"
+                name="latitude"
+                type="number"
+                step="any"
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+                placeholder="—"
+              />
             </Field>
-            <Field label="Longitude" htmlFor="longitude" hint="For the map pin (optional)">
-              <Input id="longitude" name="longitude" type="number" step="any" defaultValue={listing?.longitude ?? ""} placeholder="31.10" />
+            <Field label="Longitude" htmlFor="longitude" hint="Filled in by Find on map">
+              <Input
+                id="longitude"
+                name="longitude"
+                type="number"
+                step="any"
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+                placeholder="—"
+              />
             </Field>
           </div>
         </div>

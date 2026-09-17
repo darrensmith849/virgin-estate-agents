@@ -40,9 +40,11 @@ export const listingSchema = z.object({
     .max(60, "That property type is too long"),
   price: z.coerce.number().int().min(0, "Price can't be negative").default(0),
   rentPeriod: optionalString,
-  bedrooms: z.coerce.number().int().min(0).default(0),
-  bathrooms: z.coerce.number().int().min(0).default(0),
-  garages: z.coerce.number().int().min(0).default(0),
+  // Blank means "doesn't apply to this property" and is stored as NULL, which
+  // hides the row; 0 is kept as a genuine zero.
+  bedrooms: optionalInt,
+  bathrooms: optionalInt,
+  garages: optionalInt,
   landSizeSqm: optionalInt,
   floorSizeSqm: optionalInt,
   addressLine: optionalString,
@@ -51,6 +53,18 @@ export const listingSchema = z.object({
   latitude: optionalFloat,
   longitude: optionalFloat,
   features: z.array(z.string()).default([]),
+  // Extra specs the agency defines per listing. Rows with a blank label are
+  // dropped rather than rejected, so a half-filled row can't block a save.
+  customSpecs: z
+    .array(
+      z.object({
+        label: z.string().trim().max(60),
+        value: z.string().trim().max(120),
+      }),
+    )
+    .max(20)
+    .default([])
+    .transform((rows) => rows.filter((r) => r.label !== "")),
   agentId: z
     .string()
     .optional()

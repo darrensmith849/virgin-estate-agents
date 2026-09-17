@@ -38,7 +38,6 @@ export function ListingCard({
   const cover =
     listing.images.find((i) => i.isCover) ?? listing.images[0] ?? null;
   const area = formatArea(listing.floorSizeSqm ?? listing.landSizeSqm);
-  const isStand = listing.propertyType === "stand";
 
   return (
     <Link
@@ -109,17 +108,19 @@ export function ListingCard({
         )}
 
         <div className="mt-3 flex items-center gap-4 text-sm text-ink-soft">
-          {!isStand && (
-            <>
-              <span className="flex items-center gap-1.5">
-                <BedDouble size={15} className="text-muted" />
-                {listing.bedrooms}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Bath size={15} className="text-muted" />
-                {listing.bathrooms}
-              </span>
-            </>
+          {/* Shown only where the spec applies: null means the agency marked it
+              not applicable (a commercial unit, bare land), 0 is a real zero. */}
+          {listing.bedrooms != null && (
+            <span className="flex items-center gap-1.5">
+              <BedDouble size={15} className="text-muted" />
+              {listing.bedrooms}
+            </span>
+          )}
+          {listing.bathrooms != null && (
+            <span className="flex items-center gap-1.5">
+              <Bath size={15} className="text-muted" />
+              {listing.bathrooms}
+            </span>
           )}
           {area && (
             <span className="flex items-center gap-1.5">

@@ -6,6 +6,7 @@ import {
   Maximize,
   LandPlot,
   Home,
+  Info,
   MapPin,
   Check,
   ChevronRight,
@@ -54,16 +55,22 @@ export function ListingDetail({
   vocabulary: Vocabulary;
 }) {
   const typeName = formatPropertyType(listing.propertyType);
-  // Bare land has no rooms to report. Property types are free text now, so match
-  // on the words rather than an exact slug ("stand", "Stand / Land", "Vacant land").
-  const isStand = /\b(stand|land|plot)\b/i.test(typeName);
   const labels = vocabulary.specLabels;
+  // Which specs show is driven by the data, not by guessing from the property
+  // type: null means the agency marked it not applicable, so a commercial unit
+  // simply has no bedroom row, while 0 is still a real zero worth stating.
   const stats = [
-    !isStand && { icon: BedDouble, label: labels.bedrooms, value: listing.bedrooms },
-    !isStand && { icon: Bath, label: labels.bathrooms, value: listing.bathrooms },
-    !isStand && listing.garages > 0 && { icon: Car, label: labels.garages, value: listing.garages },
+    listing.bedrooms != null && { icon: BedDouble, label: labels.bedrooms, value: listing.bedrooms },
+    listing.bathrooms != null && { icon: Bath, label: labels.bathrooms, value: listing.bathrooms },
+    listing.garages != null && { icon: Car, label: labels.garages, value: listing.garages },
     listing.floorSizeSqm && { icon: Maximize, label: labels.floorSize, value: formatArea(listing.floorSizeSqm) },
     listing.landSizeSqm && { icon: LandPlot, label: labels.landSize, value: formatArea(listing.landSizeSqm) },
+    // Anything the agency added themselves for this property.
+    ...(listing.customSpecs ?? []).map((spec) => ({
+      icon: Info,
+      label: spec.label,
+      value: spec.value,
+    })),
     { icon: Home, label: "Type", value: typeName },
   ].filter(Boolean) as { icon: typeof Home; label: string; value: React.ReactNode }[];
 

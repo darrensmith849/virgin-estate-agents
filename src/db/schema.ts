@@ -87,11 +87,20 @@ export const listings = pgTable(
     rentPeriod: varchar("rent_period", { length: 20 }), // e.g. "month" (rentals only)
 
     // Specs
-    bedrooms: integer("bedrooms").default(0).notNull(),
-    bathrooms: integer("bathrooms").default(0).notNull(),
-    garages: integer("garages").default(0).notNull(),
+    /* Nullable on purpose: NULL means the spec doesn't apply to this property
+       and is hidden, while 0 is a genuine zero (a studio, a house with no
+       garage). Kept as columns rather than folded into customSpecs because the
+       public filters sort and range-query on them. */
+    bedrooms: integer("bedrooms"),
+    bathrooms: integer("bathrooms"),
+    garages: integer("garages"),
     landSizeSqm: integer("land_size_sqm"),
     floorSizeSqm: integer("floor_size_sqm"),
+    /** Extra specs the agency defines per listing, in their chosen order. */
+    customSpecs: jsonb("custom_specs")
+      .$type<{ label: string; value: string }[]>()
+      .default([])
+      .notNull(),
 
     // Location
     addressLine: varchar("address_line", { length: 255 }),

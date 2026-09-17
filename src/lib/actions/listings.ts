@@ -36,6 +36,13 @@ function parseListingForm(formData: FormData) {
     latitude: formData.get("latitude"),
     longitude: formData.get("longitude"),
     features: formData.getAll("features").map(String),
+    // Custom spec rows arrive as parallel label/value fields, in DOM order.
+    customSpecs: formData
+      .getAll("customSpecLabel")
+      .map((label, i) => ({
+        label: String(label),
+        value: String(formData.getAll("customSpecValue")[i] ?? ""),
+      })),
     agentId: formData.get("agentId") ?? "",
     isFeatured: formData.get("isFeatured") != null,
   });
