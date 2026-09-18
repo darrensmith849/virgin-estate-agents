@@ -8,8 +8,22 @@ import { listings } from "@/db/schema";
 import { getStorage, storageKey } from "@/lib/storage";
 import { prepareVideo } from "@/lib/video";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per image
+/*
+ * Upload ceilings. Both must stay below Caddy's `request_body max_size` (110MB).
+ *
+ * The image cap is deliberately generous. Every photo is re-encoded to a
+ * web-sized WebP further down, so a 24MP phone original costs a few seconds of
+ * CPU and lands as a few hundred KB. The previous 8MB cap rejected precisely
+ * the oversized photos the optimiser exists to fix, and all the agency saw for
+ * it was "is larger than 8 MB".
+ */
+const MAX_IMAGE_BYTES = 30 * 1024 * 1024; // 30 MB per image
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB per video
+
+/** Cap in the error message, derived so the text can't drift from the limit. */
+function asMb(bytes: number): string {
+  return `${Math.round(bytes / 1048576)} MB`;
+}
 
 
 /**
@@ -107,7 +121,7 @@ export async function POST(req: Request) {
     const maxBytes = isVideoUpload ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
     if (file.size > maxBytes) {
       return NextResponse.json(
-        { error: `"${file.name}" is larger than ${isVideoUpload ? "100 MB" : "8 MB"}.` },
+        { error: `"${file.name}" is larger than ${asMb(maxBytes)}.` },
         { status: 413 },
       );
     }
@@ -170,6 +184,13 @@ export async function POST(req: Request) {
       const prepared = await optimiseImage(buf, file.name);
       const key = storageKey(prefix, prepared.filename);
       const res = await storage.put(key, prepared.data, prepared.contentType);
+      // Logged like videos are: when the agency reports photos being heavy,
+      // this is the difference between evidence and inference.
+      console.log(
+        `[upload] image ${prepared.contentType === "image/webp" ? "optimised" : "original"}: ` +
+          `${(buf.byteLength / 1048576).toFixed(2)}MB -> ` +
+          `${(prepared.data.byteLength / 1048576).toFixed(2)}MB`,
+      );
       uploaded.push({ ...res, alt: altFor(Boolean(listingTitle), file.name) });
     }
 
