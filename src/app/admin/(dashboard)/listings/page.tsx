@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Pencil, ImageOff } from "lucide-react";
+import { Plus, Pencil, ImageOff, Eye, ExternalLink } from "lucide-react";
 
 import { listAdminListings } from "@/lib/data/listings";
 import { deleteListing } from "@/lib/actions/listings";
@@ -91,6 +91,32 @@ export default async function AdminListingsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {/* Straight to the page itself. A draft isn't public,
+                            so it goes to the admin-only preview instead — same
+                            split as the button on the edit screen. Opens in a
+                            new tab so the list stays where it was. */}
+                        <a
+                          href={
+                            l.status === "draft"
+                              ? `/admin/preview/${l.id}`
+                              : `/listings/${l.slug}`
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                          title={l.status === "draft" ? "Preview this draft" : "View on the live site"}
+                          className="inline-flex items-center gap-1.5 rounded-[var(--radius)] px-3 py-2 text-sm text-ink-soft hover:bg-paper-2"
+                        >
+                          {l.status === "draft" ? (
+                            <Eye size={15} />
+                          ) : (
+                            <ExternalLink size={15} />
+                          )}
+                          {/* Label drops away on narrow screens so three
+                              actions still fit a row. */}
+                          <span className="hidden sm:inline">
+                            {l.status === "draft" ? "Preview" : "View"}
+                          </span>
+                        </a>
                         <Link
                           href={`/admin/listings/${l.id}/edit`}
                           className="inline-flex items-center gap-1.5 rounded-[var(--radius)] px-3 py-2 text-sm text-ink-soft hover:bg-paper-2"
