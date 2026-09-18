@@ -121,7 +121,13 @@ export async function getFeaturedListings(limit = 6) {
           eq(listings.isFeatured, true),
           inArray(listings.status, [...PUBLIC_STATUSES]),
         ),
-        orderBy: [desc(listings.publishedAt), desc(listings.createdAt)],
+        // The order the agency arranged in the admin; publish date only breaks
+        // ties, which matters for listings featured before ordering existed.
+        orderBy: [
+          asc(listings.featuredOrder),
+          desc(listings.publishedAt),
+          desc(listings.createdAt),
+        ],
         limit,
         with: {
           agent: true,

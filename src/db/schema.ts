@@ -113,6 +113,9 @@ export const listings = pgTable(
     features: jsonb("features").$type<string[]>().default([]).notNull(),
     agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
     isFeatured: boolean("is_featured").default(false).notNull(),
+    /** Position in the homepage featured grid, lowest first. Only meaningful
+     *  while isFeatured is true; set by dragging in the admin. */
+    featuredOrder: integer("featured_order").default(0).notNull(),
     viewsCount: integer("views_count").default(0).notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -124,6 +127,7 @@ export const listings = pgTable(
     index("listings_kind_idx").on(t.kind),
     index("listings_suburb_idx").on(t.suburb),
     index("listings_featured_idx").on(t.isFeatured),
+    index("listings_featured_order_idx").on(t.isFeatured, t.featuredOrder),
   ],
 );
 
