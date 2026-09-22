@@ -2,6 +2,33 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    /*
+     * Serve AVIF where the browser takes it, WebP otherwise.
+     *
+     * This is the single biggest lever on what a visitor actually downloads:
+     * measured on this site's own photos, AVIF comes back roughly half the
+     * size of the equivalent WebP for the same visual quality. Order matters —
+     * the first entry the request's `Accept` header matches is the one used.
+     *
+     * Two things this depends on, both verified rather than assumed:
+     *  - Caddy and Cloudflare forward `Accept` through to Next, so the format
+     *    negotiation actually happens (a proxy that strips it would pin every
+     *    visitor to one format).
+     *  - AVIF encoding works in the deployed sharp build. `sharp.format.avif`
+     *    reports false there, but `.avif()` encodes correctly; the flag is
+     *    describing the libvips loader, not the saver.
+     *
+     * The cost is encode time on a cold request — AVIF is slower to compress,
+     * and each format is cached separately — which is why the cache TTL below
+     * is long.
+     */
+    formats: ["image/avif", "image/webp"],
+    /*
+     * Uploaded photos are immutable: the filename is a uuid, and an edit
+     * produces a new one. So nothing is gained by re-optimising them on a
+     * schedule, and a month of cache keeps repeat visitors off the encoder.
+     */
+    minimumCacheTTL: 2678400, // 31 days
     // Allow crisper rendering for the cinematic hero / journey imagery while
     // keeping the lighter 75 default for everything else.
     qualities: [75, 90],

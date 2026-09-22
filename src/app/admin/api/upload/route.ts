@@ -49,11 +49,24 @@ function altFor(knownListing: boolean, filename: string): string | null {
 }
 
 
-/* Longest edge kept for a stored photo. Comfortably past the largest size the
- * site ever renders (the gallery tops out around 1920), with room for a
- * lightbox zoom, while turning a 6MB phone photo into a few hundred KB. */
-const MAX_EDGE = 2400;
-const WEBP_QUALITY = 82;
+/*
+ * How a stored photo is encoded.
+ *
+ * These were 2400px at quality 82, which barely compressed the agency's actual
+ * uploads: their photos arrive already downscaled (most are 1600px or less,
+ * having been through WhatsApp), so the resize never fired, and quality 82 on
+ * an already-lossy source spends most of its bytes preserving the previous
+ * encoder's artefacts. Re-encoding the stored library at those settings saved
+ * 2%. At these, 24%.
+ *
+ * 1920 is the widest the site ever renders, so it costs nothing visible while
+ * still capping a large upload. `effort: 6` spends more CPU looking for a
+ * smaller encoding — it is a one-off cost per upload and lossless in quality
+ * terms. `smartSubsample` reduces chroma bleed at these quality levels.
+ */
+const MAX_EDGE = 1920;
+const WEBP_QUALITY = 74;
+const WEBP_EFFORT = 6;
 
 /**
  * Re-encode an uploaded photo before it is stored.
@@ -79,7 +92,7 @@ async function optimiseImage(
     const data = await sharp(Buffer.from(input))
       .rotate()
       .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: WEBP_QUALITY })
+      .webp({ quality: WEBP_QUALITY, effort: WEBP_EFFORT, smartSubsample: true })
       .toBuffer();
 
     const base = filename.replace(/\.[^.]+$/, "") || "photo";
