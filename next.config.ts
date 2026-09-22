@@ -29,9 +29,15 @@ const nextConfig: NextConfig = {
      * schedule, and a month of cache keeps repeat visitors off the encoder.
      */
     minimumCacheTTL: 2678400, // 31 days
-    // Allow crisper rendering for the cinematic hero / journey imagery while
-    // keeping the lighter 75 default for everything else.
-    qualities: [75, 90],
+    /*
+     * The allowlist Next 16 requires. 60 is what property photos are served
+     * at — measured on this library, dropping from 75 to 60 takes roughly a
+     * third off the bytes with no artefacting visible at the sizes the site
+     * renders, which matters more here than usual: most visitors are on
+     * Zimbabwean mobile data. 90 stays for the cinematic hero imagery, which
+     * is large, clean, and the first thing anyone sees.
+     */
+    qualities: [50, 60, 75, 90],
     // Property photos are served from R2 / Cloudflare Images in production, and
     // demo imagery from Unsplash while seeding. Tighten these to the client's
     // own R2 public domain before launch.

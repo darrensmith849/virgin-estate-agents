@@ -57,6 +57,7 @@ export function ListingCard({
               fill
               priority={priority}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              quality={60}
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
             />
           </div>

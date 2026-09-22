@@ -216,6 +216,7 @@ export function ImageUploader({
               alt={img.alt ?? ""}
               fill
               sizes="200px"
+              quality={50}
               className="object-cover"
             />
             <div className="absolute left-1.5 top-1.5 rounded bg-black/40 p-1 text-white">

@@ -52,6 +52,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
           fill
           priority
           sizes="(max-width: 1024px) 100vw, 66vw"
+          quality={60}
           className="object-cover"
         />
         <button
@@ -79,6 +80,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
                 alt={img.alt ?? ""}
                 fill
                 sizes="120px"
+                quality={50}
                 className="object-cover"
               />
               {i === 4 && images.length > 5 && (
@@ -125,6 +127,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
               alt={images[lightbox].alt ?? title}
               fill
               sizes="100vw"
+              quality={60}
               className="object-contain"
             />
           </div>

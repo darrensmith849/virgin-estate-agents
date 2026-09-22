@@ -104,6 +104,7 @@ function Card({
             alt={listing.cover.alt ?? listing.title}
             fill
             sizes="64px"
+            quality={50}
             className="object-cover"
           />
         ) : (
