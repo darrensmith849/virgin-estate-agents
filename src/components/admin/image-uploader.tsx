@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/listings";
 import { cn } from "@/lib/utils";
 import { mediaSrc } from "@/lib/media";
+import { shrinkImages } from "@/lib/client-image";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
@@ -34,25 +35,112 @@ export function ImageUploader({
   const [images, setImages] = useState<Img[]>(initialImages);
   const [videos, setVideos] = useState<Vid[]>(initialVideos);
   const [uploading, setUploading] = useState(false);
+  /** What the button says while working — compressing, then uploading. */
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(listingId ?? null);
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
-  async function uploadGroup(
+  /*
+   * Keep each request well under the proxy's 110MB body limit. Compressed
+   * photos are a few hundred KB, so this only really bites on originals the
+   * browser could not decode (HEIC in Chrome) and on videos.
+   */
+  const CHUNK_BYTES = 24 * 1024 * 1024;
+
+  /** Split a list into requests that are each small enough to succeed. */
+  function chunkBySize(files: File[]): File[][] {
+    const chunks: File[][] = [];
+    let current: File[] = [];
+    let bytes = 0;
+    for (const f of files) {
+      // A single file over the budget still goes on its own — the server
+      // decides whether it is acceptable, not us.
+      if (current.length > 0 && bytes + f.size > CHUNK_BYTES) {
+        chunks.push(current);
+        current = [];
+        bytes = 0;
+      }
+      current.push(f);
+      bytes += f.size;
+    }
+    if (current.length > 0) chunks.push(current);
+    return chunks;
+  }
+
+  async function postGroup(
     id: string,
     files: File[],
     mediaType: "image" | "video",
-  ): Promise<{ key: string; url: string; alt: string | null }[]> {
+  ): Promise<{
+    files: { key: string; url: string; alt: string | null }[];
+    skipped: string[];
+  }> {
     const fd = new FormData();
     files.forEach((f) => fd.append("files", f));
     fd.append("prefix", `listings/${id}`);
     fd.append("mediaType", mediaType);
     const res = await fetch("/admin/api/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Upload failed");
-    return data.files;
+
+    /*
+     * Read the body defensively. A request rejected by the proxy for being too
+     * large never reaches the route, so it comes back with no JSON at all —
+     * and parsing it first, before checking `res.ok`, used to surface
+     * "Unexpected end of JSON input" to the user instead of anything about
+     * the size of their photos.
+     */
+    const body: unknown = await res.json().catch(() => null);
+    if (!res.ok) {
+      const fromServer =
+        body && typeof body === "object" && "error" in body
+          ? String((body as { error: unknown }).error)
+          : null;
+      throw new Error(
+        fromServer ??
+          (res.status === 413
+            ? "Those files were too large to send in one go. Try fewer at a time."
+            : `Upload failed (${res.status}).`),
+      );
+    }
+    const parsed = body as {
+      files: { key: string; url: string; alt: string | null }[];
+      skipped?: string[];
+    };
+    return { files: parsed.files, skipped: parsed.skipped ?? [] };
+  }
+
+  /** Upload in chunks, so one rejected file cannot take the rest with it. */
+  async function uploadGroup(
+    id: string,
+    files: File[],
+    mediaType: "image" | "video",
+  ): Promise<{ key: string; url: string; alt: string | null }[]> {
+    const chunks = chunkBySize(files);
+    const out: { key: string; url: string; alt: string | null }[] = [];
+    const problems: string[] = [];
+
+    for (const [index, chunk] of chunks.entries()) {
+      if (chunks.length > 1) {
+        setProgress(`Uploading ${index + 1} of ${chunks.length}…`);
+      }
+      try {
+        const result = await postGroup(id, chunk, mediaType);
+        out.push(...result.files);
+        // Files the server declined individually — named, so they can be fixed.
+        problems.push(...result.skipped);
+      } catch (e) {
+        problems.push(e instanceof Error ? e.message : "Upload failed");
+      }
+    }
+
+    // Partial success is still success: keep what landed, say what did not.
+    if (problems.length > 0) {
+      if (out.length === 0) throw new Error(problems[0]);
+      setError(problems.join(" "));
+    }
+    return out;
   }
 
   // One picker for both — photos and videos are sorted by file type and each
@@ -79,7 +167,23 @@ export function ImageUploader({
       }
 
       if (imageFiles.length) {
-        const created = await uploadGroup(id, imageFiles, "image");
+        /*
+         * Compress before uploading, not after. The server re-encodes whatever
+         * arrives, but that is no help when the photo has to cross a slow line
+         * first — this is what turns a 12MB original into a few hundred KB
+         * before it leaves the machine.
+         */
+        setProgress(`Compressing 0 of ${imageFiles.length}…`);
+        const shrunk = await shrinkImages(imageFiles, (done, total) =>
+          setProgress(`Compressing ${done} of ${total}…`),
+        );
+        const saved =
+          shrunk.reduce((n, r) => n + r.fromBytes - r.file.size, 0) / 1048576;
+        if (saved > 0.5) {
+          console.log(`[uploader] compressed before upload, saving ${saved.toFixed(1)}MB`);
+        }
+        setProgress("Uploading…");
+        const created = await uploadGroup(id, shrunk.map((r) => r.file), "image");
         const added = await addListingImages(id, created);
         setImages((prev) => [
           ...prev,
@@ -87,6 +191,7 @@ export function ImageUploader({
         ]);
       }
       if (videoFiles.length) {
+        setProgress("Uploading video…");
         const created = await uploadGroup(id, videoFiles, "video");
         const added = await addListingVideos(
           id,
@@ -101,6 +206,7 @@ export function ImageUploader({
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
+      setProgress(null);
       if (mediaInputRef.current) mediaInputRef.current.value = "";
     }
   }
@@ -183,7 +289,7 @@ export function ImageUploader({
           ) : (
             <UploadCloud size={15} />
           )}
-          {uploading ? "Uploading…" : "Add photos & videos"}
+          {uploading ? (progress ?? "Uploading…") : "Add photos & videos"}
         </button>
       </div>
 

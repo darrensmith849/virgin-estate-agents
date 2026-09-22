@@ -119,25 +119,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No files provided" }, { status: 400 });
   }
 
-  // Validate media and sizes up-front so we fail before touching storage.
+  /*
+   * Sort the batch into what we can take and what we cannot, rather than
+   * rejecting the lot.
+   *
+   * This used to return on the first offending file, so one oversized photo in
+   * a selection of twenty threw away the other nineteen — and the message named
+   * only the one file, which made it look as though nothing had been wrong with
+   * the rest. Now the acceptable files are stored and the caller is told
+   * precisely which ones were left behind.
+   */
+  const maxBytes = isVideoUpload ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  const accepted: File[] = [];
+  const skipped: string[] = [];
+
   for (const file of files) {
     const isExpectedType = isVideoUpload
       ? file.type.startsWith("video/")
       : file.type.startsWith("image/");
     if (!isExpectedType) {
-      return NextResponse.json(
-        { error: isVideoUpload ? "Please upload video files only." : "Please upload image files only." },
-        { status: 400 },
-      );
+      skipped.push(`"${file.name}" is not ${isVideoUpload ? "a video" : "an image"}.`);
+      continue;
     }
-
-    const maxBytes = isVideoUpload ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
     if (file.size > maxBytes) {
-      return NextResponse.json(
-        { error: `"${file.name}" is larger than ${asMb(maxBytes)}.` },
-        { status: 413 },
-      );
+      skipped.push(`"${file.name}" is larger than ${asMb(maxBytes)}.`);
+      continue;
     }
+    accepted.push(file);
+  }
+
+  if (accepted.length === 0) {
+    return NextResponse.json(
+      { error: skipped.join(" ") || "No usable files were provided." },
+      { status: 413 },
+    );
   }
 
   try {
@@ -161,7 +176,7 @@ export async function POST(req: Request) {
       posterUrl?: string;
     }[] = [];
 
-    for (const file of files) {
+    for (const file of accepted) {
       const buf = await file.arrayBuffer();
 
       if (isVideoUpload) {
@@ -214,7 +229,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ files: uploaded });
+    return NextResponse.json({ files: uploaded, skipped });
   } catch (err) {
     // Always return JSON — an unhandled throw here produces an empty body,
     // which the client sees as "Unexpected end of JSON input".
