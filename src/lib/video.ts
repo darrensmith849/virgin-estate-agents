@@ -1,6 +1,6 @@
 import "server-only";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -29,8 +29,8 @@ const run = promisify(execFile);
 
 /** Above this, re-encoding is worth the wait. */
 const TRANSCODE_OVER_BYTES = 24 * 1024 * 1024;
-/** Nothing on the site displays wider than this. */
-const MAX_WIDTH = 1920;
+/** Nothing on the site displays larger than this on either edge. */
+const MAX_EDGE = 1920;
 /** Hard ceiling on ffmpeg, so a request can't hang indefinitely. */
 const FFMPEG_TIMEOUT_MS = 150_000;
 
@@ -44,7 +44,16 @@ export type PreparedVideo = {
   action: "transcoded" | "remuxed" | "original";
 };
 
-async function probe(file: string): Promise<{ width: number | null; codec: string | null }> {
+/** Like PreparedVideo, but the result is a file on disk rather than in memory. */
+export type PreparedVideoFile = Omit<PreparedVideo, "data"> & {
+  /** Path of the file to store: the processed output, or the source itself. */
+  file: string;
+  bytes: number;
+};
+
+export async function probe(
+  file: string,
+): Promise<{ width: number | null; codec: string | null }> {
   try {
     const { stdout } = await run(
       "ffprobe",
@@ -73,26 +82,56 @@ async function probe(file: string): Promise<{ width: number | null; codec: strin
  * which is exactly how the first version of this broke. */
 const MP4_SAFE_VIDEO = new Set(["h264", "avc1"]);
 
-export async function prepareVideo(
-  input: ArrayBuffer,
+function transcodeArgs(src: string, out: string): string[] {
+  return [
+    "-y", "-i", src,
+    /*
+     * Fit the long edge inside MAX_EDGE, scaling down only; -2 keeps the other
+     * side even, which H.264 requires. Bounding the long edge rather than the
+     * width matters for phone clips shot upright: a portrait 4K clip is
+     * 2160x3840, and capping only the width left it at 1920x3413.
+     *
+     * format=yuv420p: iPhone HDR clips are 10-bit, and x264 carries that
+     * through as a High 10 stream that Chrome, Firefox and most Android
+     * phones refuse to play. 8-bit 4:2:0 plays everywhere.
+     */
+    "-vf",
+    `scale='if(gte(iw,ih),min(${MAX_EDGE},iw),-2)':'if(gte(iw,ih),-2,min(${MAX_EDGE},ih))',format=yuv420p`,
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+    "-profile:v", "high", "-level:v", "4.1",
+    "-c:a", "aac", "-b:a", "128k",
+    "-movflags", "+faststart",
+    out,
+  ];
+}
+
+/**
+ * Prepare a video that is already on disk. Used directly by the chunked upload
+ * path, where the clip can be far too large to hold in memory.
+ *
+ * `workDir` must be a private scratch directory; outputs are written there and
+ * left for the caller to clean up.
+ */
+export async function prepareVideoFile(
+  src: string,
   filename: string,
-): Promise<PreparedVideo> {
-  const original: PreparedVideo = {
-    data: Buffer.from(input),
+  workDir: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<PreparedVideoFile> {
+  const timeout = opts.timeoutMs ?? FFMPEG_TIMEOUT_MS;
+  const srcBytes = (await stat(src)).size;
+  const original: PreparedVideoFile = {
+    file: src,
+    bytes: srcBytes,
     filename,
     contentType: "video/mp4",
     poster: null,
     action: "original",
   };
 
-  let dir: string | null = null;
   try {
-    dir = await mkdtemp(path.join(tmpdir(), "vea-video-"));
-    const ext = (filename.match(/\.([a-z0-9]+)$/i)?.[1] ?? "mp4").toLowerCase();
-    const src = path.join(dir, `in.${ext}`);
-    const out = path.join(dir, "out.mp4");
-    const posterFile = path.join(dir, "poster.webp");
-    await writeFile(src, Buffer.from(input));
+    const out = path.join(workDir, "out.mp4");
+    const posterFile = path.join(workDir, "poster.webp");
 
     const { width, codec } = await probe(src);
     /*
@@ -105,32 +144,31 @@ export async function prepareVideo(
     const needsReencode =
       codec === null ||
       !MP4_SAFE_VIDEO.has(codec) ||
-      input.byteLength > TRANSCODE_OVER_BYTES ||
-      (width !== null && width > MAX_WIDTH);
-    const oversized = needsReencode;
+      srcBytes > TRANSCODE_OVER_BYTES ||
+      (width !== null && width > MAX_EDGE);
+    let transcoded = needsReencode;
 
-    const args = oversized
-      ? [
-          "-y", "-i", src,
-          // Scale down only; -2 keeps the height even, which H.264 requires.
-          "-vf", `scale='min(${MAX_WIDTH},iw)':-2`,
-          "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-          "-c:a", "aac", "-b:a", "128k",
-          "-movflags", "+faststart",
-          out,
-        ]
-      : [
-          // No re-encode: copy the streams and just relocate the metadata.
-          "-y", "-i", src,
-          "-c", "copy", "-movflags", "+faststart",
-          out,
-        ];
-
-    await run("ffmpeg", args, { timeout: FFMPEG_TIMEOUT_MS, maxBuffer: 1 << 24 });
-    const data = await readFile(out);
+    if (needsReencode) {
+      await run("ffmpeg", transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
+    } else {
+      try {
+        // No re-encode: copy the streams and just relocate the metadata.
+        await run(
+          "ffmpeg",
+          ["-y", "-i", src, "-c", "copy", "-movflags", "+faststart", out],
+          { timeout, maxBuffer: 1 << 24 },
+        );
+      } catch {
+        // H.264 picture but an audio track MP4 can't carry (PCM from some
+        // cameras): copying fails, re-encoding doesn't.
+        await run("ffmpeg", transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
+        transcoded = true;
+      }
+    }
+    const outBytes = (await stat(out)).size;
 
     // A remux that somehow grew the file isn't worth keeping.
-    const useProcessed = oversized || data.byteLength <= input.byteLength;
+    const useProcessed = transcoded || outBytes <= srcBytes;
 
     let poster: PreparedVideo["poster"] = null;
     try {
@@ -150,13 +188,43 @@ export async function prepareVideo(
     const base = filename.replace(/\.[^.]+$/, "") || "video";
     return useProcessed
       ? {
-          data,
+          file: out,
+          bytes: outBytes,
           filename: `${base}.mp4`,
           contentType: "video/mp4",
           poster,
-          action: oversized ? "transcoded" : "remuxed",
+          action: transcoded ? "transcoded" : "remuxed",
         }
       : { ...original, poster };
+  } catch (err) {
+    console.error("[upload] video preparation failed, storing the original:", err);
+    return original;
+  }
+}
+
+export async function prepareVideo(
+  input: ArrayBuffer,
+  filename: string,
+): Promise<PreparedVideo> {
+  const original: PreparedVideo = {
+    data: Buffer.from(input),
+    filename,
+    contentType: "video/mp4",
+    poster: null,
+    action: "original",
+  };
+
+  let dir: string | null = null;
+  try {
+    dir = await mkdtemp(path.join(tmpdir(), "vea-video-"));
+    const ext = (filename.match(/\.([a-z0-9]+)$/i)?.[1] ?? "mp4").toLowerCase();
+    const src = path.join(dir, `in.${ext}`);
+    await writeFile(src, Buffer.from(input));
+
+    const prepared = await prepareVideoFile(src, filename, dir);
+    if (prepared.action === "original") return { ...original, poster: prepared.poster };
+    const { file, bytes: _bytes, ...rest } = prepared;
+    return { ...rest, data: await readFile(file) };
   } catch (err) {
     console.error("[upload] video preparation failed, storing the original:", err);
     return original;

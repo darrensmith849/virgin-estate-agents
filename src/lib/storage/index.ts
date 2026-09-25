@@ -12,6 +12,11 @@ export interface Storage {
     contentType: string,
   ): Promise<StoragePutResult>;
   delete(key: string): Promise<void>;
+  /**
+   * Store a file that is already on disk without reading it into memory.
+   * Optional: backends without it are given the bytes through `put`.
+   */
+  putFile?(key: string, filePath: string, contentType: string): Promise<StoragePutResult>;
 }
 
 /** Minimal shape of a Cloudflare R2 bucket binding. */

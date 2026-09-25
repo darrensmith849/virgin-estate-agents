@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { mediaSrc } from "@/lib/media";
 import { shrinkImages } from "@/lib/client-image";
+import { uploadVideo } from "@/lib/client-video-upload";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
@@ -191,8 +192,34 @@ export function ImageUploader({
         ]);
       }
       if (videoFiles.length) {
-        setProgress("Uploading video…");
-        const created = await uploadGroup(id, videoFiles, "video");
+        /*
+         * Videos go one at a time through the chunked endpoint, which has no
+         * 100MB ceiling and compresses in the background — the regular route
+         * can't take a large HD clip in a single request.
+         */
+        const created: { key: string; url: string; alt: string | null }[] = [];
+        const problems: string[] = [];
+        for (const [index, file] of videoFiles.entries()) {
+          const label =
+            videoFiles.length > 1 ? `video ${index + 1} of ${videoFiles.length}` : "video";
+          try {
+            created.push(
+              await uploadVideo(file, `listings/${id}`, (p) =>
+                setProgress(
+                  p.phase === "uploading"
+                    ? `Uploading ${label}… ${p.percent}%`
+                    : `Optimising ${label}… (can take a few minutes)`,
+                ),
+              ),
+            );
+          } catch (e) {
+            problems.push(e instanceof Error ? e.message : `"${file.name}" failed to upload.`);
+          }
+        }
+        if (problems.length > 0) {
+          if (created.length === 0) throw new Error(problems.join(" "));
+          setError(problems.join(" "));
+        }
         const added = await addListingVideos(
           id,
           created.map((file) => ({ ...file, title: file.alt })),

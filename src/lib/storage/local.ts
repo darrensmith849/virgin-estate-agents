@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { Storage } from "./index";
 
@@ -12,6 +12,13 @@ export function createLocalStorage(): Storage {
       const filePath = path.join(ROOT, key);
       await mkdir(path.dirname(filePath), { recursive: true });
       await writeFile(filePath, Buffer.from(data as ArrayBuffer));
+      return { key, url: `/uploads/${key}` };
+    },
+    async putFile(key, source, _contentType) {
+      const filePath = path.join(ROOT, key);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      // Copy rather than rename: the scratch dir may be on another filesystem.
+      await copyFile(source, filePath);
       return { key, url: `/uploads/${key}` };
     },
     async delete(key) {
