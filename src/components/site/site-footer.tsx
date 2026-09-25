@@ -172,6 +172,17 @@ export function SiteFooter() {
           <p>
             © {year} {SITE.name}. All rights reserved.
           </p>
+          <p>
+            Built by{" "}
+            <a
+              href="https://www.2ko.co.za"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium hover:text-ink"
+            >
+              www.2ko.co.za
+            </a>
+          </p>
           <div className="flex gap-5">
             <Link href="/privacy" className="hover:text-ink">
               Privacy
