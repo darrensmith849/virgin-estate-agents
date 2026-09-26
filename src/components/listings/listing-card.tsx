@@ -3,7 +3,7 @@ import Image from "next/image";
 import { BedDouble, Bath, Maximize, MapPin, ImageOff, ArrowRight } from "lucide-react";
 
 import type { Listing } from "@/db/schema";
-import { StatusBadge } from "./status-badge";
+import { StatusStamp, stampLabel } from "./status-stamp";
 import { formatPrice, formatArea, cn } from "@/lib/utils";
 import { mediaSrc } from "@/lib/media";
 
@@ -66,12 +66,9 @@ export function ListingCard({
             <ImageOff size={28} />
           </div>
         )}
-        {listing.status !== "for_sale" && (
+        {stampLabel(listing.status, listing.kind) && (
           <div className="absolute left-3 top-3">
-            <StatusBadge
-              status={listing.status}
-              className="shadow-sm backdrop-blur"
-            />
+            <StatusStamp status={listing.status} kind={listing.kind} />
           </div>
         )}
 
