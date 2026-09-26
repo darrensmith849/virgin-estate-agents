@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { enquiries, listings, pageViews } from "@/db/schema";
@@ -64,7 +64,7 @@ export async function getAnalytics(days = 30) {
         })
         .from(pageViews)
         .innerJoin(listings, eq(pageViews.listingId, listings.id))
-        .where(gte(pageViews.createdAt, since))
+        .where(and(gte(pageViews.createdAt, since), isNull(listings.deletedAt)))
         .groupBy(listings.id, listings.title, listings.slug)
         .orderBy(desc(sql`count(*)`))
         .limit(8),

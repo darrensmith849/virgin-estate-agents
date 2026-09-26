@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { enquiries, listings, pageViews } from "@/db/schema";
@@ -12,11 +12,11 @@ export async function getDashboardStats() {
       db
         .select({ c: sql<number>`count(*)::int` })
         .from(listings)
-        .where(inArray(listings.status, ["for_sale", "under_offer"])),
+        .where(and(inArray(listings.status, ["for_sale", "under_offer"]), isNull(listings.deletedAt))),
       db
         .select({ c: sql<number>`count(*)::int` })
         .from(listings)
-        .where(eq(listings.status, "draft")),
+        .where(and(eq(listings.status, "draft"), isNull(listings.deletedAt))),
       db
         .select({ c: sql<number>`count(*)::int` })
         .from(enquiries)
@@ -31,6 +31,7 @@ export async function getDashboardStats() {
         with: { listing: { columns: { title: true, slug: true } } },
       }),
       db.query.listings.findMany({
+        where: isNull(listings.deletedAt),
         orderBy: [desc(listings.updatedAt)],
         limit: 5,
         columns: { id: true, title: true, slug: true, status: true, price: true },

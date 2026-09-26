@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { listingImages, listingVideos, listings } from "@/db/schema";
@@ -10,6 +10,7 @@ import { ensureVideoTable } from "@/db/bootstrap";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getStorage } from "@/lib/storage";
 import { listingSchema } from "@/lib/validations";
+import { LISTING_BIN_DAYS } from "@/lib/constants";
 import { uniqueSlug } from "@/lib/utils";
 
 export type ListingFormState =
@@ -224,10 +225,71 @@ export async function setListingStatus(id: string, status: string): Promise<void
   revalidatePath("/listings");
 }
 
+/**
+ * Move a listing to the recycle bin. Nothing is removed: the listing simply
+ * stops appearing on the site and the admin board, and can be restored from
+ * the bin for LISTING_BIN_DAYS days before it is deleted for good.
+ */
 export async function deleteListing(id: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
 
+  await db
+    .update(listings)
+    .set({ deletedAt: new Date(), isFeatured: false, featuredOrder: 0 })
+    .where(eq(listings.id, id));
+
+  revalidateListingPages();
+  redirect("/admin/listings");
+}
+
+/** Bring a listing back from the recycle bin, exactly as it was. */
+export async function restoreListing(id: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  await db.update(listings).set({ deletedAt: null }).where(eq(listings.id, id));
+
+  revalidateListingPages();
+  revalidatePath(`/admin/listings/${id}/edit`);
+}
+
+/** Permanently delete a listing from the recycle bin, photos and videos included. */
+export async function deleteListingForever(id: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  const row = await db.query.listings.findFirst({
+    where: and(eq(listings.id, id), isNotNull(listings.deletedAt)),
+    columns: { id: true },
+  });
+  // Only listings already in the bin can be deleted for good.
+  if (!row) return;
+
+  await hardDeleteListing(id);
+  revalidatePath("/admin/recycle-bin");
+}
+
+/**
+ * Permanently delete anything that has been in the bin longer than LISTING_BIN_DAYS.
+ * Called when the admin opens Listings or the bin, so no scheduled job is
+ * needed; a failure here must never stop those pages loading.
+ */
+export async function purgeExpiredListings(): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+  try {
+    const expired = await db
+      .select({ id: listings.id })
+      .from(listings)
+      .where(lt(listings.deletedAt, sql`now() - make_interval(days => ${LISTING_BIN_DAYS})`));
+    for (const { id } of expired) await hardDeleteListing(id);
+  } catch (err) {
+    console.error("[bin] purge failed:", err);
+  }
+}
+
+async function hardDeleteListing(id: string): Promise<void> {
   // Best-effort: remove stored image and video objects too (tolerant of the
   // videos table not existing yet).
   const imgs = await db.query.listingImages.findMany({
@@ -239,9 +301,14 @@ export async function deleteListing(id: string): Promise<void> {
   await Promise.allSettled([...imgs, ...videos].map((media) => storage.delete(media.key)));
 
   await db.delete(listings).where(eq(listings.id, id));
+}
+
+function revalidateListingPages() {
   revalidatePath("/admin/listings");
+  revalidatePath("/admin/recycle-bin");
   revalidatePath("/"); // home featured grid is static
-  redirect("/admin/listings");
+  revalidatePath("/listings");
+  revalidatePath("/listings/[slug]", "page");
 }
 
 /* --------------------------------- Images -------------------------------- */

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 
 import { listAdminListings } from "@/lib/data/listings";
+import { purgeExpiredListings } from "@/lib/actions/listings";
 import { PageHeader } from "@/components/admin/page-header";
 import { ListingBoard, type BoardListing } from "@/components/admin/listing-board";
 import { buttonVariants } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { buttonVariants } from "@/components/ui/button";
 export const metadata = { title: "Listings" };
 
 export default async function AdminListingsPage() {
+  // Clear out anything that has been in the recycle bin past its 30 days.
+  await purgeExpiredListings();
   const items = await listAdminListings();
 
   // Flattened to just what the board renders, so the whole listing row (and

@@ -121,6 +121,9 @@ export const listings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** Set when the listing is moved to the recycle bin. Hidden everywhere
+     *  while set; restorable for 30 days, then permanently deleted. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
     index("listings_status_idx").on(t.status),
@@ -128,6 +131,7 @@ export const listings = pgTable(
     index("listings_suburb_idx").on(t.suburb),
     index("listings_featured_idx").on(t.isFeatured),
     index("listings_featured_order_idx").on(t.isFeatured, t.featuredOrder),
+    index("listings_deleted_at_idx").on(t.deletedAt),
   ],
 );
 
@@ -243,6 +247,11 @@ export const agencySettings = pgTable("agency_settings", {
   kindLabels: jsonb("kind_labels").$type<Record<string, string>>(),
   featureOptions: jsonb("feature_options").$type<string[]>(),
   propertyTypeOptions: jsonb("property_type_options").$type<string[]>(),
+  /** The agency's own specification types (e.g. "Study", "Staff quarters"),
+   *  offered as ready-made fields on every listing. */
+  specOptions: jsonb("spec_options").$type<string[]>(),
+  /** Standard specs (keys of DEFAULT_SPEC_LABELS) hidden from the listing form. */
+  hiddenSpecs: jsonb("hidden_specs").$type<string[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

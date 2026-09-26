@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { listings, listingImages, listingVideos } from "@/db/schema";
@@ -36,6 +36,9 @@ export type PublicListingFilters = {
 
 const PUBLIC_STATUSES = ["for_sale", "under_offer", "sold"] as const;
 
+/** Listings in the recycle bin are hidden from every read except the bin's. */
+const notDeleted = isNull(listings.deletedAt);
+
 /**
  * Drizzle's relational `with` can't filter the joined row, so a deactivated
  * agent would still have their name, photo and direct line rendered on every
@@ -50,7 +53,7 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
   const perPage = Math.min(filters.perPage ?? 12, 48);
   const page = Math.max(filters.page ?? 1, 1);
 
-  const conditions = [inArray(listings.status, [...PUBLIC_STATUSES])];
+  const conditions = [inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted];
   if (filters.kind) conditions.push(eq(listings.kind, filters.kind));
   // Legacy rows hold the old lowercase slugs ("house") while anything typed
   // since is stored as written ("House"), so match without case.
@@ -120,6 +123,7 @@ export async function getFeaturedListings(limit = 6) {
         where: and(
           eq(listings.isFeatured, true),
           inArray(listings.status, [...PUBLIC_STATUSES]),
+          notDeleted,
         ),
         // The order the agency arranged in the admin; publish date only breaks
         // ties, which matters for listings featured before ordering existed.
@@ -151,6 +155,7 @@ export async function getListingBySlug(slug: string) {
       where: and(
         eq(listings.slug, slug),
         inArray(listings.status, [...PUBLIC_STATUSES]),
+        notDeleted,
       ),
       with: {
         agent: true,
@@ -173,6 +178,7 @@ export async function getSimilarListings(
 ) {
   const conditions = [
     inArray(listings.status, [...PUBLIC_STATUSES]),
+    notDeleted,
     sql`${listings.id} <> ${listingId}`,
   ];
   const match = [];
@@ -197,9 +203,10 @@ export async function getSimilarListings(
 
 /* ----------------------------- Admin reads ------------------------------- */
 
-/** All listings for the admin table (includes drafts). */
+/** All listings for the admin table (includes drafts, not the recycle bin). */
 export async function listAdminListings() {
   return db.query.listings.findMany({
+    where: notDeleted,
     orderBy: [desc(listings.updatedAt)],
     with: {
       agent: true,
@@ -220,6 +227,32 @@ export async function getListingById(id: string) {
   return { ...listing, videos: await listingVideosFor(listing.id) };
 }
 
+/** Listings in the recycle bin, most recently deleted first. */
+export async function listBinnedListings() {
+  return db.query.listings.findMany({
+    where: isNotNull(listings.deletedAt),
+    orderBy: [desc(listings.deletedAt)],
+    columns: { id: true, title: true, suburb: true, deletedAt: true },
+    with: {
+      images: {
+        orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)],
+        limit: 1,
+      },
+    },
+  });
+}
+
+/** How many listings are in the recycle bin, for the admin nav. */
+export async function countBinnedListings(): Promise<number> {
+  return safeRead(async () => {
+    const [row] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(listings)
+      .where(isNotNull(listings.deletedAt));
+    return row?.c ?? 0;
+  }, 0);
+}
+
 export type ListingWithRelations = NonNullable<
   Awaited<ReturnType<typeof getListingById>>
 >;
@@ -231,7 +264,7 @@ export async function getPublicListingSlugs() {
       db
         .select({ slug: listings.slug, updatedAt: listings.updatedAt })
         .from(listings)
-        .where(inArray(listings.status, [...PUBLIC_STATUSES])),
+        .where(and(inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted)),
     [] as { slug: string; updatedAt: Date }[],
   );
 }
@@ -247,7 +280,7 @@ export async function listPropertyTypesInUse(): Promise<string[]> {
     const rows = await db
       .selectDistinct({ propertyType: listings.propertyType })
       .from(listings)
-      .where(inArray(listings.status, [...PUBLIC_STATUSES]));
+      .where(and(inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted));
 
     const seen = new Map<string, string>();
     for (const { propertyType } of rows) {

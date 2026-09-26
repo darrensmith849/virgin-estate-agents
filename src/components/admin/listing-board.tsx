@@ -15,7 +15,7 @@ import {
 
 import { setFeaturedOrder, setListingStatus, deleteListing } from "@/lib/actions/listings";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import { LISTING_STATUSES } from "@/lib/constants";
+import { LISTING_BIN_DAYS, LISTING_STATUSES } from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -182,7 +182,7 @@ function Card({
       <ConfirmDelete
         action={deleteListing.bind(null, listing.id)}
         iconOnly
-        message={`Delete "${listing.title}"? This can't be undone.`}
+        message={`Move "${listing.title}" to the recycle bin? You can restore it within ${LISTING_BIN_DAYS} days.`}
       />
     </div>
   );

@@ -26,6 +26,8 @@ const FALLBACK_SETTINGS: typeof agencySettings.$inferSelect = {
   kindLabels: null,
   featureOptions: null,
   propertyTypeOptions: null,
+  specOptions: null,
+  hiddenSpecs: null,
   updatedAt: new Date(0),
 };
 

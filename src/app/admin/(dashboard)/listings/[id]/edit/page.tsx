@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
+import { ArrowLeft, ExternalLink, Eye, RotateCcw } from "lucide-react";
 
 import { getListingById } from "@/lib/data/listings";
 import { listAllAgents } from "@/lib/data/agents";
 import { getAgencySettings } from "@/lib/data/settings";
 import { resolveVocabulary } from "@/lib/vocabulary";
-import { deleteListing, updateListing } from "@/lib/actions/listings";
+import { deleteListing, restoreListing, updateListing } from "@/lib/actions/listings";
+import { LISTING_BIN_DAYS } from "@/lib/constants";
 import { ListingForm } from "@/components/admin/listing-form";
 import { ImageUploader } from "@/components/admin/image-uploader";
 import { PageHeader } from "@/components/admin/page-header";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata = { title: "Edit listing" };
 
@@ -31,6 +33,32 @@ export default async function EditListingPage({
   ]);
   if (!listing) notFound();
   const vocabulary = resolveVocabulary(settings);
+
+  // A listing in the recycle bin isn't edited — only restored.
+  if (listing.deletedAt) {
+    return (
+      <>
+        <Link
+          href="/admin/recycle-bin"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+        >
+          <ArrowLeft size={15} /> Back to recycle bin
+        </Link>
+        <PageHeader title="Edit listing" description={listing.title} />
+        <div className="rounded-xl border border-line bg-card p-6">
+          <p className="text-ink">This listing is in the recycle bin.</p>
+          <p className="mt-1 text-sm text-muted">
+            It&rsquo;s hidden from the website. Restore it to edit it again.
+          </p>
+          <form action={restoreListing.bind(null, listing.id)} className="mt-4">
+            <button type="submit" className={buttonVariants({ size: "sm" })}>
+              <RotateCcw size={15} /> Restore listing
+            </button>
+          </form>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -66,7 +94,7 @@ export default async function EditListingPage({
         </a>
         <ConfirmDelete
           action={deleteListing.bind(null, listing.id)}
-          message={`Delete "${listing.title}"? This can't be undone.`}
+          message={`Move "${listing.title}" to the recycle bin? You can restore it within ${LISTING_BIN_DAYS} days.`}
           className="border border-line"
         />
       </PageHeader>

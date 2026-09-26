@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { requireUser } from "@/lib/auth/dal";
 import { countNewEnquiries } from "@/lib/data/enquiries";
+import { countBinnedListings } from "@/lib/data/listings";
 import { AdminNav } from "@/components/admin/admin-nav";
 
 export const metadata: Metadata = {
@@ -16,7 +17,10 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const newEnquiries = await countNewEnquiries();
+  const [newEnquiries, binCount] = await Promise.all([
+    countNewEnquiries(),
+    countBinnedListings(),
+  ]);
 
   return (
     <div className="min-h-screen bg-paper md:grid md:grid-cols-[264px_1fr]">
@@ -29,7 +33,7 @@ export default async function AdminLayout({
             </span>
           </Link>
         </div>
-        <AdminNav userName={user.name} newEnquiries={newEnquiries} />
+        <AdminNav userName={user.name} newEnquiries={newEnquiries} binCount={binCount} />
       </aside>
 
       <div className="min-w-0">

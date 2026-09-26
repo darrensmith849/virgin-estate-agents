@@ -32,6 +32,9 @@ export const NAV_LINKS = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
+/** How many days a deleted listing stays restorable in the recycle bin. */
+export const LISTING_BIN_DAYS = 30;
+
 /** Harare suburbs used as a first-class filter. */
 export const HARARE_SUBURBS = [
   "Avondale",

@@ -11,6 +11,7 @@ import {
   Settings,
   ExternalLink,
   LogOut,
+  Trash2,
 } from "lucide-react";
 
 import { logout } from "@/lib/actions/auth";
@@ -23,14 +24,18 @@ const LINKS = [
   { href: "/admin/agents", label: "Agents", icon: Users, exact: false, badge: false },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, exact: false, badge: false },
   { href: "/admin/settings", label: "Settings", icon: Settings, exact: false, badge: false },
+  { href: "/admin/recycle-bin", label: "Recycle bin", icon: Trash2, exact: false, badge: false },
 ] as const;
 
 export function AdminNav({
   userName,
   newEnquiries,
+  binCount = 0,
 }: {
   userName: string;
   newEnquiries: number;
+  /** Listings currently in the recycle bin — shown as a quiet count. */
+  binCount?: number;
 }) {
   const pathname = usePathname();
 
@@ -62,6 +67,16 @@ export function AdminNav({
                   )}
                 >
                   {newEnquiries}
+                </span>
+              )}
+              {href === "/admin/recycle-bin" && binCount > 0 && (
+                <span
+                  className={cn(
+                    "ml-auto rounded-full px-2 py-0.5 text-xs",
+                    active ? "bg-white/20 text-white" : "bg-paper-2 text-muted",
+                  )}
+                >
+                  {binCount}
                 </span>
               )}
             </Link>
