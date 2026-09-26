@@ -15,7 +15,8 @@ const optionalString = z
 const optionalInt = z
   .preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : v),
-    z.coerce.number().int().min(0).optional(),
+    // Capped below Postgres's integer limit, which would otherwise throw.
+    z.coerce.number().int().min(0).max(2_000_000_000).optional(),
   )
   .optional();
 

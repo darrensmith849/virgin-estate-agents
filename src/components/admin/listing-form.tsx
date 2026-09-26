@@ -71,7 +71,14 @@ export function ListingForm({
     const seen = new Set(vocabulary.featureOptions.map((f) => f.toLowerCase()));
     return [...vocabulary.featureOptions, ...saved.filter((f) => !seen.has(f.toLowerCase()))];
   });
-  const [checked, setChecked] = useState<string[]>(saved);
+  // Tick saved features under the list's own spelling. A feature saved as
+  // "swimming pool" while the list says "Swimming pool" otherwise showed
+  // unticked, and was dropped from the listing on the next save.
+  const [checked, setChecked] = useState<string[]>(() =>
+    saved.map(
+      (f) => vocabulary.featureOptions.find((o) => o.toLowerCase() === f.toLowerCase()) ?? f,
+    ),
+  );
   const [newFeature, setNewFeature] = useState("");
 
   /* The five standard specs, held in state so a bulk paste can fill them. */
@@ -84,19 +91,30 @@ export function ListingForm({
   }));
 
   /* The agency's own spec types (Settings) each get a ready-made box. They are
-     stored as ordinary custom specs, so a saved row whose label matches a type
-     fills that box instead of appearing again under "Other details". */
+     stored as ordinary custom specs: the first saved row whose label matches a
+     type fills that box (keeping its saved spelling), and every other row —
+     including any second row with the same name — stays under "Other details",
+     so nothing already saved can be lost. */
   const savedSpecs =
     (listing?.customSpecs as { label: string; value: string }[] | undefined) ?? [];
-  const specTypeKeys = new Set(vocabulary.specOptions.map((l) => l.toLowerCase()));
-  const [specTypeValues, setSpecTypeValues] = useState<Record<string, string>>(() => {
-    const out: Record<string, string> = {};
-    for (const label of vocabulary.specOptions) {
-      const hit = savedSpecs.find((r) => r.label.toLowerCase() === label.toLowerCase());
-      out[label] = hit?.value ?? "";
+  const [specTypeInit] = useState(() => {
+    const claimed = new Set<number>();
+    const values: Record<string, { label: string; value: string; saved: boolean }> = {};
+    for (const type of vocabulary.specOptions) {
+      const i = savedSpecs.findIndex(
+        (r, idx) => !claimed.has(idx) && r.label.trim().toLowerCase() === type.toLowerCase(),
+      );
+      if (i >= 0) claimed.add(i);
+      values[type] =
+        i >= 0
+          ? { label: savedSpecs[i].label, value: savedSpecs[i].value, saved: true }
+          : { label: type, value: "", saved: false };
     }
-    return out;
+    return { claimed, values };
   });
+  const [specTypeValues, setSpecTypeValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(specTypeInit.values).map(([k, v]) => [k, v.value])),
+  );
 
   /* Custom spec rows. Each carries a stable id so React keys survive a removal
      from the middle — indexes alone would make the wrong row lose its text. */
@@ -104,8 +122,18 @@ export function ListingForm({
     { id: string; label: string; value: string }[]
   >(() =>
     savedSpecs
-      .filter((row) => !specTypeKeys.has(row.label.toLowerCase()))
+      .filter((_, idx) => !specTypeInit.claimed.has(idx))
       .map((row) => ({ ...row, id: crypto.randomUUID() })),
+  );
+
+  /* A standard spec switched off in Settings still shows while this listing
+     has a value for it. Decided once (and when a paste fills one), not from
+     the live value, so clearing the box doesn't make it vanish mid-edit. */
+  const [shownHidden, setShownHidden] = useState<Set<StandardField>>(
+    () =>
+      new Set(
+        (Object.keys(std) as StandardField[]).filter((f) => std[f] !== ""),
+      ),
   );
 
   function addSpec() {
@@ -277,6 +305,7 @@ export function ListingForm({
       }
       return next;
     });
+    setShownHidden((prev) => new Set([...prev, ...(Object.keys(p.standard) as StandardField[])]));
     setSpecTypeValues((prev) => {
       const next = { ...prev };
       for (const { label, value } of p.specTypes) next[label] = value;
@@ -452,7 +481,7 @@ export function ListingForm({
           {STANDARD_SPECS.filter(
             // A spec the agency has switched off stays visible only while this
             // listing still has a value in it, so nothing disappears unseen.
-            ({ key, field }) => !vocabulary.hiddenSpecs.includes(key) || std[field] !== "",
+            ({ key, field }) => !vocabulary.hiddenSpecs.includes(key) || shownHidden.has(field),
           ).map(({ key, field, unit }) => (
             <Field
               key={field}
@@ -475,10 +504,11 @@ export function ListingForm({
 
         {vocabulary.specOptions.length > 0 && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            {vocabulary.specOptions.map((label) => (
-              <Field key={label} label={label} htmlFor={`specType_${label}`}>
+            {vocabulary.specOptions.map((label, i) => (
+              <Field key={label} label={label} htmlFor={`specType_${i}`}>
                 <Input
-                  id={`specType_${label}`}
+                  id={`specType_${i}`}
+                  maxLength={120}
                   value={specTypeValues[label] ?? ""}
                   onChange={(e) =>
                     setSpecTypeValues((prev) => ({ ...prev, [label]: e.target.value }))
@@ -492,11 +522,17 @@ export function ListingForm({
         {/* Filled spec types are submitted as custom specs, ahead of the
             one-off rows so they keep the order set in Settings. */}
         {vocabulary.specOptions
-          .filter((label) => (specTypeValues[label] ?? "").trim() !== "")
+          .filter((label) => {
+            const value = (specTypeValues[label] ?? "").trim();
+            // A row saved with no value is kept as it was; otherwise an empty
+            // box simply means "doesn't apply" and isn't stored.
+            const init = specTypeInit.values[label];
+            return value !== "" || (init?.saved && init.value.trim() === "");
+          })
           .map((label) => (
             <span key={label} hidden>
-              <input type="hidden" name="customSpecLabel" value={label} />
-              <input type="hidden" name="customSpecValue" value={specTypeValues[label]} />
+              <input type="hidden" name="customSpecLabel" value={specTypeInit.values[label]?.label ?? label} />
+              <input type="hidden" name="customSpecValue" value={specTypeValues[label] ?? ""} />
             </span>
           ))}
 
@@ -513,6 +549,7 @@ export function ListingForm({
                 <div key={row.id} className="flex flex-wrap items-center gap-2">
                   <Input
                     name="customSpecLabel"
+                    maxLength={60}
                     value={row.label}
                     onChange={(e) => updateSpec(i, { label: e.target.value })}
                     placeholder="Name, e.g. Loading bays"
@@ -521,6 +558,7 @@ export function ListingForm({
                   />
                   <Input
                     name="customSpecValue"
+                    maxLength={120}
                     value={row.value}
                     onChange={(e) => updateSpec(i, { value: e.target.value })}
                     placeholder="Value, e.g. 3"
@@ -539,6 +577,13 @@ export function ListingForm({
                 </div>
               ))}
             </div>
+          )}
+
+          {fe.customSpecs?.[0] && (
+            <p className="mt-3 text-xs text-red-600">
+              Some details couldn&rsquo;t be saved — names can be up to 60
+              characters, values up to 120, and 60 details in all.
+            </p>
           )}
 
           <Button type="button" variant="outline" className="mt-4" onClick={addSpec}>

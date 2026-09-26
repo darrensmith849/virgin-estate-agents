@@ -100,6 +100,20 @@ export async function createDraftListing(): Promise<{ id?: string; error?: strin
   return { id: created.id };
 }
 
+/** Optional listing fields that an emptied form box should clear. */
+const CLEARABLE_FIELDS = [
+  "bedrooms",
+  "bathrooms",
+  "garages",
+  "landSizeSqm",
+  "floorSizeSqm",
+  "rentPeriod",
+  "addressLine",
+  "suburb",
+  "latitude",
+  "longitude",
+] as const;
+
 export async function updateListing(
   id: string,
   _prev: ListingFormState,
@@ -130,9 +144,17 @@ export async function updateListing(
     ? { slug: uniqueSlug(data.title) }
     : {};
 
+  // A box emptied on the form parses as `undefined`, which Drizzle leaves out
+  // of the UPDATE — so a spec, address or rent period could never be cleared.
+  // Store null for those, but only for boxes actually on the submitted form:
+  // anything the form didn't include is left exactly as it was.
+  const cleared = Object.fromEntries(
+    CLEARABLE_FIELDS.filter((k) => formData.has(k) && data[k] === undefined).map((k) => [k, null]),
+  );
+
   await db
     .update(listings)
-    .set({ ...data, ...slug, publishedAt, updatedAt: new Date() })
+    .set({ ...data, ...cleared, ...slug, publishedAt, updatedAt: new Date() })
     .where(eq(listings.id, id));
 
   revalidatePath("/admin/listings");
@@ -298,10 +320,12 @@ async function hardDeleteListing(id: string): Promise<void> {
     columns: { key: true },
   });
   const videos = await listingVideoKeys(id);
+
+  // Row first, files second: if the delete fails, the listing is still whole
+  // rather than left pointing at photos that no longer exist.
+  await db.delete(listings).where(eq(listings.id, id));
   const storage = await getStorage();
   await Promise.allSettled([...imgs, ...videos].map((media) => storage.delete(media.key)));
-
-  await db.delete(listings).where(eq(listings.id, id));
 }
 
 function revalidateListingPages() {

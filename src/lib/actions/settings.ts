@@ -63,9 +63,13 @@ export async function updateSettings(
     propertyTypeOptions: collectList(formData, "propertyTypeOptions"),
     specOptions: collectList(formData, "specOptions"),
     // Each standard spec has a "use this" tick; the unticked ones are hidden.
-    hiddenSpecs: Object.keys(DEFAULT_SPEC_LABELS).filter(
-      (key) => formData.get(`specShown_${key}`) == null,
-    ),
+    // Only when the ticks were on the submitted form — a form without them
+    // (e.g. a Settings tab left open from before this update) changes nothing.
+    hiddenSpecs: formData.has("specShownPresent")
+      ? Object.keys(DEFAULT_SPEC_LABELS).filter(
+          (key) => formData.get(`specShown_${key}`) == null,
+        )
+      : undefined,
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
