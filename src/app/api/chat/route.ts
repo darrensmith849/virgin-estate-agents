@@ -12,6 +12,40 @@ export const dynamic = "force-dynamic";
 type Msg = { role: "user" | "assistant"; content: string };
 type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
+/** Longest we wait for a model before moving on to the next option. */
+const LLM_TIMEOUT_MS = 20_000;
+
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+
+type LlmConfig = { baseUrl: string; apiKey: string; model: string; name: string };
+
+/**
+ * Which OpenAI-compatible provider to call.
+ *
+ * On Cloudflare, OPENAI_BASE_URL and OPENAI_MODEL pointed at Groq from
+ * wrangler.jsonc, and only the key was a secret. Since the move to the Node
+ * server only the environment file is read, so without those two settings a
+ * Groq key was sent to OpenAI's endpoint, rejected, and every visitor got the
+ * WhatsApp fallback. Recognise a Groq key (they start "gsk_") or GROQ_API_KEY
+ * and default to Groq, so the key alone is enough. Explicit OPENAI_BASE_URL /
+ * OPENAI_MODEL still win.
+ */
+function resolveLlm(e: {
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
+  OPENAI_BASE_URL?: string;
+  GROQ_API_KEY?: string;
+}): LlmConfig | null {
+  const apiKey = e.OPENAI_API_KEY || e.GROQ_API_KEY;
+  if (!apiKey) return null;
+  const isGroq =
+    !e.OPENAI_BASE_URL && (Boolean(e.GROQ_API_KEY && !e.OPENAI_API_KEY) || apiKey.startsWith("gsk_"));
+  const baseUrl = e.OPENAI_BASE_URL || (isGroq ? GROQ_BASE_URL : "https://api.openai.com/v1");
+  const model = e.OPENAI_MODEL || (isGroq ? GROQ_MODEL : "gpt-4o-mini");
+  return { baseUrl, apiKey, model, name: new URL(baseUrl).hostname };
+}
+
 const FALLBACK = `I'm having trouble reaching the assistant right now — please WhatsApp us on ${SITE.whatsapp}, or send a message via the contact page and a member of the team will get straight back to you.`;
 
 /** Primary brain: any OpenAI-compatible Chat Completions API — OpenAI, xAI/Grok,
@@ -26,6 +60,8 @@ async function askChatCompletion(
   try {
     const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
+      // A hung provider must not hold the visitor's chat open indefinitely.
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
@@ -69,6 +105,7 @@ async function askWorkersAI(
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast`,
       {
         method: "POST",
+        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiToken}`,
@@ -146,21 +183,17 @@ export async function POST(req: Request): Promise<Response> {
     OPENAI_API_KEY?: string;
     OPENAI_MODEL?: string;
     OPENAI_BASE_URL?: string;
+    GROQ_API_KEY?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_AI_TOKEN?: string;
   };
 
-  // 1) Prefer the external LLM (OpenAI or xAI/Grok) when a key is configured.
-  //    Default endpoint is OpenAI; set OPENAI_BASE_URL=https://api.x.ai/v1 for Grok.
-  if (e.OPENAI_API_KEY) {
-    const reply = await askChatCompletion(
-      e.OPENAI_BASE_URL || "https://api.openai.com/v1",
-      e.OPENAI_API_KEY,
-      e.OPENAI_MODEL || "gpt-4o-mini",
-      messages,
-    );
+  // 1) The external LLM (Groq, OpenAI, xAI…) when a key is configured.
+  const llm = resolveLlm(e);
+  if (llm) {
+    const reply = await askChatCompletion(llm.baseUrl, llm.apiKey, llm.model, messages);
     if (reply) {
-      console.log(`[chat] answered via external LLM (${e.OPENAI_BASE_URL || "openai"})`);
+      console.log(`[chat] answered via ${llm.name} (${llm.model})`);
       return Response.json({ reply });
     }
   }
@@ -172,10 +205,18 @@ export async function POST(req: Request): Promise<Response> {
     e.CLOUDFLARE_AI_TOKEN,
     messages,
   );
-  console.log(
-    e.OPENAI_API_KEY
-      ? "[chat] external LLM failed — answered via Workers AI fallback"
-      : "[chat] no external LLM key set — answered via Workers AI",
-  );
+  if (reply) {
+    console.log(
+      llm
+        ? `[chat] ${llm.name} failed — answered via Workers AI fallback`
+        : "[chat] no external LLM key set — answered via Workers AI",
+    );
+  } else {
+    // Say so plainly: the visitor is being told to use WhatsApp instead.
+    console.error(
+      `[chat] no model answered (${llm ? `${llm.name} failed` : "no LLM key set"}; ` +
+        `Workers AI ${e.CLOUDFLARE_ACCOUNT_ID && e.CLOUDFLARE_AI_TOKEN ? "failed" : "not configured"}) — sent the WhatsApp fallback`,
+    );
+  }
   return Response.json({ reply: reply || FALLBACK });
 }
