@@ -7,6 +7,8 @@ import type { ListingFormState } from "@/lib/actions/listings";
 import type { Agent, Listing } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { LocationPicker } from "@/components/admin/location-picker";
+import { PasteSpecs } from "@/components/admin/paste-specs";
+import type { ParsedSpecs } from "@/lib/spec-parser";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { HARARE_SUBURBS, LISTING_STATUSES, type SpecLabelKey } from "@/lib/constants";
@@ -265,6 +267,44 @@ export function ListingForm({
     setNewFeature("");
   }
 
+  /** Fill the form from a bulk paste. Overwrites the specs it found, ticks
+   *  features (adding any new ones) and adds or updates other details. */
+  function applyParsed(p: ParsedSpecs) {
+    setStd((prev) => {
+      const next = { ...prev };
+      for (const [field, value] of Object.entries(p.standard) as [StandardField, number][]) {
+        next[field] = String(value);
+      }
+      return next;
+    });
+    setSpecTypeValues((prev) => {
+      const next = { ...prev };
+      for (const { label, value } of p.specTypes) next[label] = value;
+      return next;
+    });
+    if (p.features.length) {
+      const names = p.features.map(
+        (f) => featureOptions.find((o) => o.toLowerCase() === f.toLowerCase()) ?? f,
+      );
+      setFeatureOptions((prev) => [
+        ...prev,
+        ...names.filter((n) => !prev.some((o) => o.toLowerCase() === n.toLowerCase())),
+      ]);
+      setChecked((prev) => [...prev, ...names.filter((n) => !prev.includes(n))]);
+    }
+    if (p.other.length) {
+      setCustomSpecs((prev) => {
+        const next = [...prev];
+        for (const { label, value } of p.other) {
+          const i = next.findIndex((r) => r.label.toLowerCase() === label.toLowerCase());
+          if (i >= 0) next[i] = { ...next[i], value };
+          else next.push({ id: crypto.randomUUID(), label, value });
+        }
+        return next;
+      });
+    }
+  }
+
   function toggleFeature(name: string) {
     setChecked((prev) =>
       prev.includes(name) ? prev.filter((f) => f !== name) : [...prev, name],
@@ -406,6 +446,8 @@ export function ListingForm({
         title="Specifications"
         description="Leave a box empty if it doesn't apply — an empty spec is hidden on the site, while 0 is shown as a real zero. Rename these or add your own types in Settings, or add one-off details below."
       >
+        <PasteSpecs vocabulary={vocabulary} onApply={applyParsed} />
+
         <div className="grid gap-4 sm:grid-cols-3">
           {STANDARD_SPECS.filter(
             // A spec the agency has switched off stays visible only while this
