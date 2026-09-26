@@ -17,6 +17,7 @@ import {
 import type { getListingBySlug } from "@/lib/data/listings";
 import { Container } from "@/components/ui/container";
 import { StatusBadge } from "@/components/listings/status-badge";
+import { StatusStamp } from "@/components/listings/status-stamp";
 import { Gallery } from "@/components/listings/gallery";
 import { VideoGallery } from "@/components/listings/video-gallery";
 import { PropertyMap } from "@/components/listings/property-map";
@@ -208,10 +209,19 @@ export function ListingDetail({
       <div className="grid gap-10 lg:grid-cols-3">
         {/* Main column */}
         <div className="lg:col-span-2">
-          <Gallery
-            images={listing.images.map((i) => ({ url: i.url, alt: i.alt }))}
-            title={listing.title}
-          />
+          <div className="relative">
+            <Gallery
+              images={listing.images.map((i) => ({ url: i.url, alt: i.alt }))}
+              title={listing.title}
+            />
+            {/* Over the main photo, which is the gallery's top-left corner. */}
+            <StatusStamp
+              status={listing.status}
+              kind={listing.kind}
+              size="lg"
+              className="absolute left-4 top-4 z-10 sm:left-5 sm:top-5"
+            />
+          </div>
           <VideoGallery
             videos={listing.videos.map((video) => ({
               id: video.id,
@@ -247,9 +257,11 @@ export function ListingDetail({
           </div>
 
           {/* Key stats */}
-          <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-3">
+          {/* Boxes grow to fill their row, so an odd count (a plot with only
+              a type and a size) never leaves an empty grey cell. */}
+          <div className="mt-8 flex flex-wrap gap-px overflow-hidden rounded-xl border border-line bg-line">
             {stats.map((s, i) => (
-              <div key={i} className="bg-card p-4">
+              <div key={i} className="min-w-0 grow basis-[40%] bg-card p-4 sm:basis-[30%]">
                 <s.icon size={18} className="text-brand" />
                 <p className="mt-2 text-lg font-medium text-ink">{s.value}</p>
                 <p className="text-xs text-muted">{s.label}</p>
@@ -258,9 +270,9 @@ export function ListingDetail({
           </div>
 
           {/* Key facts — at a glance */}
-          <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
+          <dl className="mt-4 flex flex-wrap gap-px overflow-hidden rounded-xl border border-line bg-line">
             {keyFacts.map((f) => (
-              <div key={f.label} className="bg-card p-4">
+              <div key={f.label} className="min-w-0 grow basis-[40%] bg-card p-4 sm:basis-[20%]">
                 <dt className="text-xs text-muted">{f.label}</dt>
                 <dd className="mt-1 text-sm font-medium text-ink">{f.value}</dd>
               </div>
