@@ -172,17 +172,25 @@ export function SiteFooter() {
           <p>
             © {year} {SITE.name}. All rights reserved.
           </p>
-          <p>
-            Built by{" "}
-            <a
-              href="https://www.2ko.co.za"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium hover:text-ink"
-            >
-              www.2ko.co.za
-            </a>
-          </p>
+          <a
+            href="https://www.2ko.co.za"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Built by 2KO — www.2ko.co.za (opens in a new tab)"
+            className="inline-flex items-center gap-2 transition-colors hover:text-ink"
+          >
+            Built by
+            {/* The 2KO mark as a mask, so it takes the footer's text colour
+                and darkens with the link on hover. */}
+            <span
+              aria-hidden="true"
+              className="inline-block h-[18px] w-[46px] bg-current"
+              style={{
+                WebkitMask: "url(/images/2ko-logo.png) center / contain no-repeat",
+                mask: "url(/images/2ko-logo.png) center / contain no-repeat",
+              }}
+            />
+          </a>
           <div className="flex gap-5">
             <Link href="/privacy" className="hover:text-ink">
               Privacy
