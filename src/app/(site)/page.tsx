@@ -13,7 +13,6 @@ import { Services } from "@/components/site/services";
 import { HowItWorks } from "@/components/site/how-it-works";
 import { SellerCta } from "@/components/site/seller-cta";
 import { Faq } from "@/components/site/faq";
-import { StatsBand } from "@/components/site/stats-band";
 import { Testimonials } from "@/components/site/testimonials";
 import { getFeaturedListings, listPropertyTypesInUse } from "@/lib/data/listings";
 import { HARARE_SUBURBS } from "@/lib/constants";
@@ -229,11 +228,6 @@ export default async function HomePage() {
       {/* Sell / let with us — valuation invite                             */}
       {/* ----------------------------------------------------------------- */}
       <SellerCta />
-
-      {/* ----------------------------------------------------------------- */}
-      {/* Track record — business metrics                                   */}
-      {/* ----------------------------------------------------------------- */}
-      <StatsBand />
 
       {/* ----------------------------------------------------------------- */}
       {/* Testimonials                                                      */}

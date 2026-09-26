@@ -26,7 +26,6 @@ import { ShareButton } from "@/components/listings/share-button";
 import { ViewTracker } from "@/components/listings/view-tracker";
 import { AdminBar } from "@/components/admin/admin-bar";
 import { ListingCard } from "@/components/listings/listing-card";
-import { BondCalculator } from "@/components/site/bond-calculator";
 import { SITE } from "@/lib/constants";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 import { slugifySuburb, suburbBlurb } from "@/lib/suburbs";
@@ -349,9 +348,6 @@ export function ListingDetail({
               </p>
               <EnquiryForm listingId={listing.id} listingTitle={listing.title} />
             </div>
-            {listing.kind === "sale" && listing.price > 0 && (
-              <BondCalculator price={listing.price} />
-            )}
           </div>
         </aside>
       </div>

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { buttonVariants } from "@/components/ui/button";
 import AboutGalleryScroll from "@/components/AboutGalleryScroll";
-import { StatsBand } from "@/components/site/stats-band";
 import { SITE } from "@/lib/constants";
 
 export const metadata: Metadata = {
@@ -72,8 +71,6 @@ export default function AboutPage() {
           </div>
         </div>
       </Container>
-
-      <StatsBand heading="Virgin Estate by the numbers" />
     </>
   );
 }
