@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { listingImages, listingVideos, listings } from "@/db/schema";
@@ -187,7 +187,9 @@ export async function setFeaturedOrder(ids: string[]): Promise<void> {
     await tx
       .update(listings)
       .set({ isFeatured: false, featuredOrder: 0 })
-      .where(eq(listings.isFeatured, true));
+      // Listings in the recycle bin aren't on the board, so leave their
+      // homepage spot alone for when they're restored.
+      .where(and(eq(listings.isFeatured, true), isNull(listings.deletedAt)));
 
     for (const [index, id] of clean.entries()) {
       await tx
@@ -234,10 +236,9 @@ export async function deleteListing(id: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
 
-  await db
-    .update(listings)
-    .set({ deletedAt: new Date(), isFeatured: false, featuredOrder: 0 })
-    .where(eq(listings.id, id));
+  // Only the bin stamp changes. Everything else — homepage spot included — is
+  // left as it was, so a restore puts the listing back exactly.
+  await db.update(listings).set({ deletedAt: new Date() }).where(eq(listings.id, id));
 
   revalidateListingPages();
   redirect("/admin/listings");
