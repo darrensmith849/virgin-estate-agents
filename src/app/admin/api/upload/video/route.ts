@@ -8,6 +8,7 @@ import { altFor } from "@/lib/upload-alt";
 import {
   MAX_CHUNK_BYTES,
   MAX_VIDEO_UPLOAD_BYTES,
+  canStartVideoUpload,
   finishVideoUpload,
   getVideoUpload,
   startVideoUpload,
@@ -52,6 +53,10 @@ export async function POST(req: Request) {
     }
     if (!Number.isInteger(chunkBytes) || chunkBytes < 1024 * 1024 || chunkBytes > MAX_CHUNK_BYTES) {
       return fail("Bad chunk size.", 400);
+    }
+
+    if (!canStartVideoUpload()) {
+      return fail("Several videos are already uploading. Please wait for those to finish.", 429);
     }
 
     // Same alt rule as the regular route: nothing for a known listing.
@@ -102,6 +107,11 @@ export async function PUT(req: Request) {
     return fail("Bad chunk index.", 400);
   }
 
+  // Refuse an oversized piece before reading it into memory.
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_CHUNK_BYTES) {
+    return fail("Chunk too large.", 413);
+  }
   const data = new Uint8Array(await req.arrayBuffer());
   if (data.byteLength > MAX_CHUNK_BYTES) return fail("Chunk too large.", 413);
 

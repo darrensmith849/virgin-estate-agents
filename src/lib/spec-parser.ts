@@ -39,8 +39,11 @@ export type ParserVocabulary = {
   hiddenSpecs?: string[];
 };
 
+/* "a"/"an" are deliberately absent: "an en-suite bathroom" is a feature, not
+   a count that should overwrite "2 bathrooms". Leading articles are stripped
+   instead, so "a double garage" still reads as 2. */
 const NUMBER_WORDS: Record<string, number> = {
-  a: 1, an: 1, one: 1, single: 1, two: 2, double: 2, twin: 2, three: 3, triple: 3,
+  one: 1, single: 1, two: 2, double: 2, twin: 2, three: 3, triple: 3,
   four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11,
   twelve: 12,
 };
@@ -53,6 +56,11 @@ function toNumber(raw: string): number {
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** A spec type's name as a whole phrase, even one ending in "." ("Staff qtrs."). */
+function labelRe(label: string): RegExp {
+  return new RegExp(String.raw`(?<![a-z0-9])${escapeRe(label)}(?![a-z0-9])`, "i");
 }
 
 /* ---------------------------------------------------------------- split -- */
@@ -72,6 +80,7 @@ export function splitItems(text: string): string[] {
         // Leading list markers: "-", "*", "✓", "1.", "a)" and the like.
         .replace(/^[\s\-–—*+>✓✔☑✅▪▫◦●○]+/u, "")
         .replace(/^(?:\d{1,2}|[a-z])[.)]\s+/i, "")
+        .replace(/^(?:a|an|the)\s+(?=\S)/i, "")
         .replace(/[.\s]+$/, "")
         .trim(),
     )
@@ -141,6 +150,8 @@ function readArea(item: string): StandardHit | null {
     FLOOR_HINT.test(item) && !LAND_HINT.test(item)
       ? "floorSizeSqm"
       : "landSizeSqm";
+  // Nothing real is this big; almost certainly a typo, so don't guess.
+  if (sqm > 1_000_000_000) return null;
   return { field, value: Math.round(sqm) };
 }
 
@@ -228,7 +239,7 @@ export function parseSpecs(text: string, vocab: ParserVocabulary): ParsedSpecs {
       counted.some(([field, kw]) => readCounted(item, field, kw)?.rest === "") ||
       /^(?:lock-?up\s+)?garage$/i.test(item) ||
       readArea(item) !== null ||
-      vocab.specOptions.some((l) => new RegExp(String.raw`\b${escapeRe(l)}\b`, "i").test(item)) ||
+      vocab.specOptions.some((l) => labelRe(l).test(item)) ||
       bestMatch(item, vocab.featureOptions) !== null
     );
   }
@@ -262,7 +273,7 @@ export function parseSpecs(text: string, vocab: ParserVocabulary): ParsedSpecs {
 
     // 2. The agency's own spec types ("Staff quarters: 1", "Study").
     for (const label of vocab.specOptions) {
-      const re = new RegExp(String.raw`\b${escapeRe(label)}\b`, "i");
+      const re = labelRe(label);
       if (!re.test(item) && bestMatch(item, [label]) === null) continue;
       const rest = item
         .replace(re, "")

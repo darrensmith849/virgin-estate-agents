@@ -43,7 +43,13 @@ function resolveLlm(e: {
     !e.OPENAI_BASE_URL && (Boolean(e.GROQ_API_KEY && !e.OPENAI_API_KEY) || apiKey.startsWith("gsk_"));
   const baseUrl = e.OPENAI_BASE_URL || (isGroq ? GROQ_BASE_URL : "https://api.openai.com/v1");
   const model = e.OPENAI_MODEL || (isGroq ? GROQ_MODEL : "gpt-4o-mini");
-  return { baseUrl, apiKey, model, name: new URL(baseUrl).hostname };
+  let name = baseUrl;
+  try {
+    name = new URL(baseUrl).hostname;
+  } catch {
+    // A mistyped base URL is reported by the request itself; don't crash here.
+  }
+  return { baseUrl, apiKey, model, name };
 }
 
 const FALLBACK = `I'm having trouble reaching the assistant right now — please WhatsApp us on ${SITE.whatsapp}, or send a message via the contact page and a member of the team will get straight back to you.`;

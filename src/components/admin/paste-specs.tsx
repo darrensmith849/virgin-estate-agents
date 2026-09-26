@@ -127,7 +127,7 @@ export function PasteSpecs({
           Paste specs
         </Button>
         {applied ? (
-          <span className="text-sm text-brand">{applied}</span>
+          <span role="status" className="text-sm text-brand">{applied}</span>
         ) : (
           <span className="text-sm text-muted">
             Paste a whole list and it&rsquo;s sorted into the boxes for you.

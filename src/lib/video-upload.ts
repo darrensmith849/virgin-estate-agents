@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, mkdtemp, open, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -38,6 +38,8 @@ export const MAX_CHUNK_BYTES = 16 * 1024 * 1024;
 const PROCESS_TIMEOUT_MS = 60 * 60 * 1000;
 /** Abandoned uploads are swept after this long without activity. */
 const IDLE_EXPIRY_MS = 6 * 60 * 60 * 1000;
+/** Uploads in flight at once. Each can be 2GB of scratch space. */
+export const MAX_ACTIVE_UPLOADS = 4;
 
 /** Scratch space. Override when /tmp is small or memory-backed (tmpfs). */
 const SCRATCH_ROOT = path.join(
@@ -73,11 +75,36 @@ type Session = {
 const g = globalThis as unknown as {
   __veaVideoSessions?: Map<string, Session>;
   __veaVideoQueue?: Promise<void>;
+  __veaVideoScratchCleaned?: boolean;
 };
 const sessions = (g.__veaVideoSessions ??= new Map<string, Session>());
 
+/** Whether another upload can start right now. */
+export function canStartVideoUpload(): boolean {
+  let active = 0;
+  for (const s of sessions.values()) {
+    if (s.state === "receiving" || s.state === "processing") active++;
+  }
+  return active < MAX_ACTIVE_UPLOADS;
+}
+
 async function sweep() {
   const now = Date.now();
+  // Once per process: scratch folders left behind by a restart belong to no
+  // session any more, so nothing else would ever remove them.
+  if (!g.__veaVideoScratchCleaned) {
+    g.__veaVideoScratchCleaned = true;
+    const known = new Set([...sessions.values()].map((s) => s.dir));
+    const entries = await readdir(SCRATCH_ROOT).catch(() => [] as string[]);
+    for (const name of entries) {
+      const dir = path.join(SCRATCH_ROOT, name);
+      if (known.has(dir)) continue;
+      const info = await stat(dir).catch(() => null);
+      if (info && now - info.mtimeMs > 60 * 60 * 1000) {
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
+    }
+  }
   for (const [id, s] of sessions) {
     if (s.state === "processing") continue;
     if (now - s.touched > IDLE_EXPIRY_MS) {

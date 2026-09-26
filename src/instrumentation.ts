@@ -5,5 +5,10 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { ensureSchema } = await import("./db/ensure-schema");
-  await ensureSchema();
+  // Never hold up start-up for long: an unreachable database is handled by the
+  // pages' own fallbacks.
+  await Promise.race([
+    ensureSchema(),
+    new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+  ]);
 }

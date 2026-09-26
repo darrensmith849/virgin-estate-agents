@@ -9,22 +9,67 @@ import { db, isDbConfigured } from "./index";
  * `listings.deleted_at` to a database without it would fail every listing query
  * — and public pages swallow read errors, so the site would quietly show no
  * listings at all. The same SQL lives in drizzle/0005_listing_recycle_bin.sql
- * for applying by hand; this runs it idempotently at server start (from
- * instrumentation.ts) so a deploy can't get ahead of the database.
+ * and should be applied by hand before deploying; this is the safety net, run
+ * at server start from instrumentation.ts.
+ *
+ * It only looks first and adds what is missing, so on a database that already
+ * has the columns it changes nothing and takes no locks. Each addition is tried
+ * on its own with a short lock timeout, so one failure (say, a user without
+ * ALTER rights) neither blocks start-up nor stops the others.
  *
  * Deliberately free of "server-only": instrumentation runs outside the React
  * server layer.
  */
+const COLUMNS = [
+  { table: "listings", column: "deleted_at", type: sql`timestamp with time zone` },
+  { table: "agency_settings", column: "spec_options", type: sql`jsonb` },
+  { table: "agency_settings", column: "hidden_specs", type: sql`jsonb` },
+] as const;
+
 export async function ensureSchema(): Promise<void> {
   if (!isDbConfigured) return;
+
+  let present: Set<string>;
   try {
-    await db.execute(sql`ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp with time zone`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS "listings_deleted_at_idx" ON "listings" ("deleted_at")`);
-    await db.execute(sql`ALTER TABLE "agency_settings" ADD COLUMN IF NOT EXISTS "spec_options" jsonb`);
-    await db.execute(sql`ALTER TABLE "agency_settings" ADD COLUMN IF NOT EXISTS "hidden_specs" jsonb`);
+    const rows = (await db.execute(sql`
+      SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND (table_name, column_name) IN (
+          ('listings', 'deleted_at'),
+          ('agency_settings', 'spec_options'),
+          ('agency_settings', 'hidden_specs')
+        )
+    `)) as unknown as { table_name: string; column_name: string }[];
+    present = new Set(
+      (Array.isArray(rows) ? rows : ((rows as { rows?: typeof rows }).rows ?? [])).map(
+        (r) => `${r.table_name}.${r.column_name}`,
+      ),
+    );
   } catch (err) {
-    // Never block start-up: an unreachable database is handled by the pages'
-    // own fallbacks, and the next start will try again.
-    console.error("[schema] ensure failed:", err);
+    console.error("[schema] ensure failed: could not read the schema:", err);
+    return;
+  }
+
+  for (const { table, column, type } of COLUMNS) {
+    if (present.has(`${table}.${column}`)) continue;
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
+        await tx.execute(
+          sql`ALTER TABLE ${sql.identifier(table)} ADD COLUMN IF NOT EXISTS ${sql.identifier(column)} ${type}`,
+        );
+        if (column === "deleted_at") {
+          await tx.execute(
+            sql`CREATE INDEX IF NOT EXISTS "listings_deleted_at_idx" ON "listings" ("deleted_at")`,
+          );
+        }
+      });
+      console.log(`[schema] added ${table}.${column}`);
+    } catch (err) {
+      console.error(
+        `[schema] ensure failed: could not add ${table}.${column} — apply drizzle/0005_listing_recycle_bin.sql by hand:`,
+        err,
+      );
+    }
   }
 }

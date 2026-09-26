@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { Star, Trash2, UploadCloud, GripVertical, Loader2 } from "lucide-react";
 
@@ -42,6 +42,18 @@ export function ImageUploader({
   const [currentId, setCurrentId] = useState<string | null>(listingId ?? null);
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
+
+  /* A video is only attached to the listing once it has finished optimising,
+     so leaving mid-way would lose it. Ask before the page is closed. */
+  useEffect(() => {
+    if (!uploading) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uploading]);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   /*
@@ -208,7 +220,7 @@ export function ImageUploader({
                 setProgress(
                   p.phase === "uploading"
                     ? `Uploading ${label}… ${p.percent}%`
-                    : `Optimising ${label}… (can take a few minutes)`,
+                    : `Optimising ${label}… keep this page open`,
                 ),
               ),
             );
