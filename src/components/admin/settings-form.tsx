@@ -74,6 +74,7 @@ export function SettingsForm({ settings }: { settings: AgencySettings }) {
         <h3 className="mt-6 text-sm font-medium text-ink">Specification labels</h3>
         <p className="mt-1 text-sm text-muted">
           Used on property cards and detail pages — e.g. call bedrooms “Rooms”.
+          Untick one you never use to hide it from the listing form.
         </p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(Object.keys(DEFAULT_SPEC_LABELS) as (keyof typeof DEFAULT_SPEC_LABELS)[]).map(
@@ -85,9 +86,34 @@ export function SettingsForm({ settings }: { settings: AgencySettings }) {
                   defaultValue={vocab.specLabels[key]}
                   placeholder={DEFAULT_SPEC_LABELS[key]}
                 />
+                <label className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    name={`specShown_${key}`}
+                    defaultChecked={!vocab.hiddenSpecs.includes(key)}
+                    className="h-3.5 w-3.5 rounded border-line text-brand focus:ring-brand/30"
+                  />
+                  Use on listings
+                </label>
               </Field>
             ),
           )}
+        </div>
+
+        <h3 className="mt-8 text-sm font-medium text-ink">Specification types</h3>
+        <p className="mt-1 text-sm text-muted">
+          One per line. Your own specifications — each appears as a ready-made
+          box on every listing, filled in only where it applies. Staff can still
+          add one-off details to an individual property.
+        </p>
+        <div className="mt-3">
+          <Textarea
+            id="specOptions"
+            name="specOptions"
+            defaultValue={vocab.specOptions.join("\n")}
+            placeholder={"e.g.\nStudy\nStaff quarters\nBorehole\nSolar"}
+            rows={6}
+          />
         </div>
 
         <h3 className="mt-8 text-sm font-medium text-ink">Listing type wording</h3>

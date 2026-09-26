@@ -62,7 +62,7 @@ export const listingSchema = z.object({
         value: z.string().trim().max(120),
       }),
     )
-    .max(20)
+    .max(60)
     .default([])
     .transform((rows) => rows.filter((r) => r.label !== "")),
   agentId: z
@@ -110,6 +110,8 @@ export const settingsSchema = z.object({
   kindLabels: z.record(z.string(), z.string().trim().max(40)).nullish(),
   featureOptions: z.array(z.string().trim().min(1).max(80)).max(100).nullish(),
   propertyTypeOptions: z.array(z.string().trim().min(1).max(60)).max(100).nullish(),
+  specOptions: z.array(z.string().trim().min(1).max(60)).max(40).nullish(),
+  hiddenSpecs: z.array(z.string()).max(10).nullish(),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
 

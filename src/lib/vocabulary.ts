@@ -20,6 +20,8 @@ export type VocabularySource = {
   kindLabels?: Record<string, string> | null;
   featureOptions?: string[] | null;
   propertyTypeOptions?: string[] | null;
+  specOptions?: string[] | null;
+  hiddenSpecs?: string[] | null;
 };
 
 export type Vocabulary = {
@@ -27,6 +29,10 @@ export type Vocabulary = {
   kindLabels: { sale: string; rent: string };
   featureOptions: string[];
   propertyTypeOptions: string[];
+  /** The agency's own specification types, offered on every listing. */
+  specOptions: string[];
+  /** Standard specs the agency has chosen not to use. */
+  hiddenSpecs: SpecLabelKey[];
 };
 
 /** Drop blanks and duplicates while preserving the order the agency chose. */
@@ -74,6 +80,11 @@ export function resolveVocabulary(source?: VocabularySource | null): Vocabulary 
     propertyTypeOptions: propertyTypeOptions.length
       ? propertyTypeOptions
       : [...PROPERTY_TYPE_SUGGESTIONS],
+    // No built-in defaults: an agency that hasn't set any gets none.
+    specOptions: cleanList(source?.specOptions),
+    hiddenSpecs: (source?.hiddenSpecs ?? []).filter(
+      (key): key is SpecLabelKey => key in DEFAULT_SPEC_LABELS,
+    ),
   };
 }
 

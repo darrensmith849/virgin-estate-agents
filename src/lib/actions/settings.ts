@@ -61,6 +61,11 @@ export async function updateSettings(
     kindLabels: collectLabels(formData, "kindLabel", Object.keys(DEFAULT_KIND_LABELS)),
     featureOptions: collectList(formData, "featureOptions"),
     propertyTypeOptions: collectList(formData, "propertyTypeOptions"),
+    specOptions: collectList(formData, "specOptions"),
+    // Each standard spec has a "use this" tick; the unticked ones are hidden.
+    hiddenSpecs: Object.keys(DEFAULT_SPEC_LABELS).filter(
+      (key) => formData.get(`specShown_${key}`) == null,
+    ),
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };

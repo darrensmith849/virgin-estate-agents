@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LocationPicker } from "@/components/admin/location-picker";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
-import { HARARE_SUBURBS, LISTING_STATUSES } from "@/lib/constants";
+import { HARARE_SUBURBS, LISTING_STATUSES, type SpecLabelKey } from "@/lib/constants";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 
 type Props = {
@@ -20,6 +20,17 @@ type Props = {
   /** The agency's own wording and option lists (admin Settings). */
   vocabulary: Vocabulary;
 };
+
+type StandardField = "bedrooms" | "bathrooms" | "garages" | "landSizeSqm" | "floorSizeSqm";
+
+/** The fixed numeric specs, mapped from their label key to their form field. */
+const STANDARD_SPECS: { key: SpecLabelKey; field: StandardField; unit?: string }[] = [
+  { key: "bedrooms", field: "bedrooms" },
+  { key: "bathrooms", field: "bathrooms" },
+  { key: "garages", field: "garages" },
+  { key: "landSize", field: "landSizeSqm", unit: "m²" },
+  { key: "floorSize", field: "floorSizeSqm", unit: "m²" },
+];
 
 function Section({
   title,
@@ -61,14 +72,38 @@ export function ListingForm({
   const [checked, setChecked] = useState<string[]>(saved);
   const [newFeature, setNewFeature] = useState("");
 
+  /* The five standard specs, held in state so a bulk paste can fill them. */
+  const [std, setStd] = useState<Record<StandardField, string>>(() => ({
+    bedrooms: listing?.bedrooms?.toString() ?? "",
+    bathrooms: listing?.bathrooms?.toString() ?? "",
+    garages: listing?.garages?.toString() ?? "",
+    landSizeSqm: listing?.landSizeSqm?.toString() ?? "",
+    floorSizeSqm: listing?.floorSizeSqm?.toString() ?? "",
+  }));
+
+  /* The agency's own spec types (Settings) each get a ready-made box. They are
+     stored as ordinary custom specs, so a saved row whose label matches a type
+     fills that box instead of appearing again under "Other details". */
+  const savedSpecs =
+    (listing?.customSpecs as { label: string; value: string }[] | undefined) ?? [];
+  const specTypeKeys = new Set(vocabulary.specOptions.map((l) => l.toLowerCase()));
+  const [specTypeValues, setSpecTypeValues] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const label of vocabulary.specOptions) {
+      const hit = savedSpecs.find((r) => r.label.toLowerCase() === label.toLowerCase());
+      out[label] = hit?.value ?? "";
+    }
+    return out;
+  });
+
   /* Custom spec rows. Each carries a stable id so React keys survive a removal
      from the middle — indexes alone would make the wrong row lose its text. */
   const [customSpecs, setCustomSpecs] = useState<
     { id: string; label: string; value: string }[]
   >(() =>
-    ((listing?.customSpecs as { label: string; value: string }[] | undefined) ?? []).map(
-      (row) => ({ ...row, id: crypto.randomUUID() }),
-    ),
+    savedSpecs
+      .filter((row) => !specTypeKeys.has(row.label.toLowerCase()))
+      .map((row) => ({ ...row, id: crypto.randomUUID() })),
   );
 
   function addSpec() {
@@ -369,25 +404,59 @@ export function ListingForm({
 
       <Section
         title="Specifications"
-        description="Leave a box empty if it doesn't apply — an empty spec is hidden on the site, while 0 is shown as a real zero. Rename these in Settings, or add your own below."
+        description="Leave a box empty if it doesn't apply — an empty spec is hidden on the site, while 0 is shown as a real zero. Rename these or add your own types in Settings, or add one-off details below."
       >
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label={vocabulary.specLabels.bedrooms} htmlFor="bedrooms">
-            <Input id="bedrooms" name="bedrooms" type="number" min={0} defaultValue={listing?.bedrooms ?? ""} placeholder="—" />
-          </Field>
-          <Field label={vocabulary.specLabels.bathrooms} htmlFor="bathrooms">
-            <Input id="bathrooms" name="bathrooms" type="number" min={0} defaultValue={listing?.bathrooms ?? ""} placeholder="—" />
-          </Field>
-          <Field label={vocabulary.specLabels.garages} htmlFor="garages">
-            <Input id="garages" name="garages" type="number" min={0} defaultValue={listing?.garages ?? ""} placeholder="—" />
-          </Field>
-          <Field label={`${vocabulary.specLabels.landSize} (m²)`} htmlFor="landSizeSqm">
-            <Input id="landSizeSqm" name="landSizeSqm" type="number" min={0} defaultValue={listing?.landSizeSqm ?? ""} placeholder="—" />
-          </Field>
-          <Field label={`${vocabulary.specLabels.floorSize} (m²)`} htmlFor="floorSizeSqm">
-            <Input id="floorSizeSqm" name="floorSizeSqm" type="number" min={0} defaultValue={listing?.floorSizeSqm ?? ""} placeholder="—" />
-          </Field>
+          {STANDARD_SPECS.filter(
+            // A spec the agency has switched off stays visible only while this
+            // listing still has a value in it, so nothing disappears unseen.
+            ({ key, field }) => !vocabulary.hiddenSpecs.includes(key) || std[field] !== "",
+          ).map(({ key, field, unit }) => (
+            <Field
+              key={field}
+              label={unit ? `${vocabulary.specLabels[key]} (${unit})` : vocabulary.specLabels[key]}
+              htmlFor={field}
+              error={fe[field]?.[0] ? "Enter a whole number" : undefined}
+            >
+              <Input
+                id={field}
+                name={field}
+                type="number"
+                min={0}
+                value={std[field]}
+                onChange={(e) => setStd((prev) => ({ ...prev, [field]: e.target.value }))}
+                placeholder="—"
+              />
+            </Field>
+          ))}
         </div>
+
+        {vocabulary.specOptions.length > 0 && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            {vocabulary.specOptions.map((label) => (
+              <Field key={label} label={label} htmlFor={`specType_${label}`}>
+                <Input
+                  id={`specType_${label}`}
+                  value={specTypeValues[label] ?? ""}
+                  onChange={(e) =>
+                    setSpecTypeValues((prev) => ({ ...prev, [label]: e.target.value }))
+                  }
+                  placeholder="—"
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+        {/* Filled spec types are submitted as custom specs, ahead of the
+            one-off rows so they keep the order set in Settings. */}
+        {vocabulary.specOptions
+          .filter((label) => (specTypeValues[label] ?? "").trim() !== "")
+          .map((label) => (
+            <span key={label} hidden>
+              <input type="hidden" name="customSpecLabel" value={label} />
+              <input type="hidden" name="customSpecValue" value={specTypeValues[label]} />
+            </span>
+          ))}
 
         <div className="mt-6 border-t border-line pt-5">
           <h3 className="text-sm font-medium text-ink">Other details</h3>
