@@ -9,12 +9,9 @@ import {
   Users,
   BarChart3,
   Settings,
-  ExternalLink,
-  LogOut,
   Trash2,
 } from "lucide-react";
 
-import { logout } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -28,11 +25,9 @@ const LINKS = [
 ] as const;
 
 export function AdminNav({
-  userName,
   newEnquiries,
   binCount = 0,
 }: {
-  userName: string;
   newEnquiries: number;
   /** Listings currently in the recycle bin — shown as a quiet count. */
   binCount?: number;
@@ -40,8 +35,8 @@ export function AdminNav({
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col">
-      <nav className="flex gap-1 overflow-x-auto p-3 md:flex-1 md:flex-col md:overflow-visible md:p-4">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <nav className="flex gap-1 overflow-x-auto p-3 md:flex-1 md:flex-col md:overflow-x-visible md:overflow-y-auto md:p-4">
         {LINKS.map(({ href, label, icon: Icon, exact, badge }) => {
           const active = exact
             ? pathname === href
@@ -83,32 +78,6 @@ export function AdminNav({
           );
         })}
       </nav>
-
-      <div className="hidden border-t border-line p-4 md:block">
-        <Link
-          href="/"
-          target="_blank"
-          className="mb-3 flex items-center gap-2 px-3 text-sm text-muted hover:text-ink"
-        >
-          <ExternalLink size={16} />
-          View site
-        </Link>
-        <div className="flex items-center justify-between rounded-[var(--radius)] bg-paper-2 px-3 py-2.5">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-ink">{userName}</p>
-            <p className="text-xs text-muted">Administrator</p>
-          </div>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-ink-soft hover:bg-line hover:text-ink"
-            >
-              <LogOut size={15} />
-              Log out
-            </button>
-          </form>
-        </div>
-      </div>
     </div>
   );
 }
