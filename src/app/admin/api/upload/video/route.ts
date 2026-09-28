@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { listings } from "@/db/schema";
+import { listingVideos, listings } from "@/db/schema";
+import { ensureVideoTable } from "@/db/bootstrap";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { altFor } from "@/lib/upload-alt";
 import {
@@ -12,6 +13,7 @@ import {
   finishVideoUpload,
   getVideoUpload,
   hasRoomFor,
+  pendingVideosFor,
   startVideoUpload,
   writeVideoChunk,
 } from "@/lib/video-upload";
@@ -132,7 +134,24 @@ export async function PUT(req: Request) {
 
 export async function GET(req: Request) {
   if (!(await getCurrentUser())) return fail("Unauthorized", 401);
-  const session = getVideoUpload(new URL(req.url).searchParams.get("id") ?? "");
+  const params = new URL(req.url).searchParams;
+
+  // ?listing=<id>: how many of this listing's videos are still processing,
+  // and the ones attached so far — lets the edit page pick up a video that
+  // finished after the admin left and came back.
+  const listingId = params.get("listing");
+  if (listingId) {
+    if (!/^[0-9a-f-]{36}$/i.test(listingId)) return fail("Bad listing id.", 400);
+    await ensureVideoTable();
+    const videos = await db.query.listingVideos.findMany({
+      where: eq(listingVideos.listingId, listingId),
+      orderBy: [asc(listingVideos.sortOrder)],
+      columns: { id: true, url: true, title: true },
+    });
+    return NextResponse.json({ pending: pendingVideosFor(listingId), videos });
+  }
+
+  const session = getVideoUpload(params.get("id") ?? "");
   if (!session) return fail("Upload expired. Please try again.", 404);
   return NextResponse.json({
     state: session.state,

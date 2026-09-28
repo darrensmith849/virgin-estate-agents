@@ -3,6 +3,11 @@ import { mkdir, mkdtemp, open, readdir, readFile, rm, stat, statfs } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { eq, sql } from "drizzle-orm";
+
+import { db } from "@/db";
+import { listingVideos } from "@/db/schema";
+import { ensureVideoTable } from "@/db/bootstrap";
 import { getStorage, storageKey } from "@/lib/storage";
 import { prepareVideoFile, probe } from "@/lib/video";
 
@@ -63,7 +68,14 @@ export type VideoUploadResult = {
   url: string;
   alt: string | null;
   posterUrl?: string;
+  /** Set when the clip was attached to its listing here on the server. */
+  video?: { id: string; url: string; title: string | null };
 };
+
+/** "listings/<uuid>" → the listing id, or null for any other prefix. */
+function listingIdFrom(prefix: string): string | null {
+  return /^listings\/([0-9a-f-]{36})$/i.exec(prefix)?.[1] ?? null;
+}
 
 type Session = {
   id: string;
@@ -200,6 +212,15 @@ export async function writeVideoChunk(s: Session, index: number, data: Uint8Arra
   s.touched = Date.now();
 }
 
+/** How many videos for this listing are still uploading or being processed. */
+export function pendingVideosFor(listingId: string): number {
+  let n = 0;
+  for (const s of sessions.values()) {
+    if ((s.state === "receiving" || s.state === "processing") && listingIdFrom(s.prefix) === listingId) n++;
+  }
+  return n;
+}
+
 /** Queue the clip for compression. Returns immediately; poll for the result. */
 export function finishVideoUpload(s: Session) {
   s.state = "processing";
@@ -226,7 +247,7 @@ async function processSession(s: Session) {
      * and often won't play in Chrome or on Android at all. Say so, rather than
      * quietly attaching a file that breaks the listing page.
      */
-    if (prepared.action === "original" && s.size > ORIGINAL_FALLBACK_MAX_BYTES) {
+    if (prepared.failed && s.size > ORIGINAL_FALLBACK_MAX_BYTES) {
       throw new Error(
         `"${s.filename}" couldn't be converted for the web. Please try again, or upload a shorter clip.`,
       );
@@ -251,7 +272,33 @@ async function processSession(s: Session) {
       `[upload] video ${prepared.action} (chunked): ${(s.size / 1048576).toFixed(1)}MB -> ` +
         `${(prepared.bytes / 1048576).toFixed(1)}MB in ${Math.round((Date.now() - started) / 1000)}s`,
     );
-    s.result = { ...res, alt: s.alt, posterUrl };
+    /*
+     * Attach it to the listing here, not from the browser. Compressing a long
+     * clip can take a while, and the admin shouldn't have to keep the page
+     * open for it — the video simply appears on the listing when it's ready.
+     */
+    let video: VideoUploadResult["video"];
+    const listingId = listingIdFrom(s.prefix);
+    if (listingId) {
+      await ensureVideoTable();
+      const [row] = await db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(listingVideos)
+        .where(eq(listingVideos.listingId, listingId));
+      const [created] = await db
+        .insert(listingVideos)
+        .values({
+          listingId,
+          key: res.key,
+          url: res.url,
+          title: s.alt,
+          sortOrder: row?.c ?? 0,
+        })
+        .returning({ id: listingVideos.id, url: listingVideos.url, title: listingVideos.title });
+      video = created;
+    }
+
+    s.result = { ...res, alt: s.alt, posterUrl, video };
     s.state = "done";
   } catch (err) {
     console.error("[upload] chunked video failed:", err);

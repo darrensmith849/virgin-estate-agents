@@ -10,12 +10,16 @@ const ENDPOINT = "/admin/api/upload/video";
 const CHUNK_BYTES = 8 * 1024 * 1024;
 const RETRIES = 5;
 const POLL_MS = 3000;
+/** Pieces uploaded at the same time. */
+const PARALLEL_CHUNKS = 4;
 
 export type UploadedVideo = {
   key: string;
   url: string;
   alt: string | null;
   posterUrl?: string;
+  /** Set when the server has already attached it to the listing. */
+  video?: { id: string; url: string; title: string | null };
 };
 
 export type VideoProgress =
@@ -65,11 +69,27 @@ async function send(input: string, init: RequestInit): Promise<Response> {
   throw new Error(message);
 }
 
+/** Upload a video and wait until the server has finished with it. */
 export async function uploadVideo(
   file: File,
   prefix: string,
   onProgress: (p: VideoProgress) => void,
 ): Promise<UploadedVideo> {
+  const id = await sendVideo(file, prefix, onProgress);
+  onProgress({ phase: "processing" });
+  return waitForVideo(id);
+}
+
+/**
+ * Upload a video's bytes and hand it to the server; returns the upload id as
+ * soon as the last piece has landed. The server then finishes on its own —
+ * the page doesn't need to stay open for that part.
+ */
+export async function sendVideo(
+  file: File,
+  prefix: string,
+  onProgress: (p: VideoProgress) => void,
+): Promise<string> {
   const start = await send(`${ENDPOINT}?op=start`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -85,17 +105,31 @@ export async function uploadVideo(
 
   const total = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
   onProgress({ phase: "uploading", percent: 0 });
-  for (let index = 0; index < total; index++) {
-    const piece = file.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
-    await withRetry(() =>
-      send(`${ENDPOINT}?id=${encodeURIComponent(id)}&index=${index}`, {
-        method: "PUT",
-        headers: { "content-type": "application/octet-stream" },
-        body: piece,
-      }),
-    );
-    onProgress({ phase: "uploading", percent: Math.round(((index + 1) / total) * 100) });
-  }
+
+  /*
+   * Several pieces in flight at once. One request at a time wastes most of a
+   * long-distance link waiting for each reply (Harare to the server is a long
+   * round trip); a few in parallel keep it full. The server writes each piece
+   * at its own offset, so the order they land in doesn't matter.
+   */
+  let next = 0;
+  let done = 0;
+  const worker = async () => {
+    while (next < total) {
+      const index = next++;
+      const piece = file.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
+      await withRetry(() =>
+        send(`${ENDPOINT}?id=${encodeURIComponent(id)}&index=${index}`, {
+          method: "PUT",
+          headers: { "content-type": "application/octet-stream" },
+          body: piece,
+        }),
+      );
+      done++;
+      onProgress({ phase: "uploading", percent: Math.round((done / total) * 100) });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PARALLEL_CHUNKS, total) }, worker));
 
   await withRetry(() =>
     send(`${ENDPOINT}?op=finish`, {
@@ -105,7 +139,11 @@ export async function uploadVideo(
     }),
   );
 
-  onProgress({ phase: "processing" });
+  return id;
+}
+
+/** Wait for the server to finish processing an uploaded video. */
+export async function waitForVideo(id: string): Promise<UploadedVideo> {
   for (;;) {
     await new Promise((r) => setTimeout(r, POLL_MS));
     const res = await withRetry(() =>

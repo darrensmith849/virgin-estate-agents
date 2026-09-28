@@ -38,7 +38,11 @@ function ffmpeg(args: string[], opts: { timeout: number; maxBuffer: number }) {
  * the agency than a failed upload.
  */
 
-/** Above this, re-encoding is worth the wait. */
+/** 8-bit 4:2:0 plays everywhere; 10-bit (HDR) H.264 does not. */
+const WEB_SAFE_PIXEL_FORMATS = new Set(["yuv420p", "yuvj420p"]);
+/** Above this (bits per second), a large clip is worth shrinking. */
+const MAX_BITRATE = 10_000_000;
+/** Below this size, a clip is left alone whatever its bitrate. */
 const TRANSCODE_OVER_BYTES = 24 * 1024 * 1024;
 /** Nothing on the site displays larger than this on either edge. */
 const MAX_EDGE = 1920;
@@ -57,34 +61,61 @@ export type PreparedVideo = {
 
 /** Like PreparedVideo, but the result is a file on disk rather than in memory. */
 export type PreparedVideoFile = Omit<PreparedVideo, "data"> & {
+  /** True when processing broke and the untouched original is being returned
+   *  as a fallback — as opposed to an original kept because it was already
+   *  as good as it gets. */
+  failed?: boolean;
   /** Path of the file to store: the processed output, or the source itself. */
   file: string;
   bytes: number;
 };
 
-export async function probe(
-  file: string,
-): Promise<{ width: number | null; codec: string | null }> {
+export type ProbeResult = {
+  width: number | null;
+  height: number | null;
+  codec: string | null;
+  pixFmt: string | null;
+  /** Seconds. */
+  duration: number | null;
+  /** Bits per second, overall. */
+  bitRate: number | null;
+};
+
+export async function probe(file: string): Promise<ProbeResult> {
+  const none: ProbeResult = {
+    width: null, height: null, codec: null, pixFmt: null, duration: null, bitRate: null,
+  };
   try {
     const { stdout } = await run(
       "ffprobe",
       [
         "-v", "error",
         "-select_streams", "v:0",
-        "-show_entries", "stream=width,codec_name",
-        "-of", "csv=p=0",
+        "-show_entries", "stream=codec_name,width,height,pix_fmt:format=duration,bit_rate",
+        "-of", "json",
         file,
       ],
       { timeout: 15_000 },
     );
-    // csv gives "codec,width" or "width,codec" depending on stream order, so
-    // pick each field out by shape rather than position.
-    const parts = String(stdout).trim().split(/[,\n]/).map((v) => v.trim()).filter(Boolean);
-    const width = parts.map(Number).find((n) => Number.isFinite(n) && n > 0) ?? null;
-    const codec = parts.find((v) => !/^\d+$/.test(v))?.toLowerCase() ?? null;
-    return { width, codec };
+    const data = JSON.parse(String(stdout)) as {
+      streams?: { codec_name?: string; width?: number; height?: number; pix_fmt?: string }[];
+      format?: { duration?: string; bit_rate?: string };
+    };
+    const stream = data.streams?.[0];
+    const num = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    return {
+      width: num(stream?.width),
+      height: num(stream?.height),
+      codec: stream?.codec_name?.toLowerCase() ?? null,
+      pixFmt: stream?.pix_fmt ?? null,
+      duration: num(data.format?.duration),
+      bitRate: num(data.format?.bit_rate),
+    };
   } catch {
-    return { width: null, codec: null };
+    return none;
   }
 }
 
@@ -108,7 +139,7 @@ function transcodeArgs(src: string, out: string): string[] {
      */
     "-vf",
     `scale='if(gte(iw,ih),min(${MAX_EDGE},iw),-2)':'if(gte(iw,ih),-2,min(${MAX_EDGE},ih))',format=yuv420p`,
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+    "-c:v", "libx264", "-preset", "superfast", "-crf", "28",
     "-profile:v", "high", "-level:v", "4.1",
     "-c:a", "aac", "-b:a", "128k",
     "-movflags", "+faststart",
@@ -144,7 +175,8 @@ export async function prepareVideoFile(
     const out = path.join(workDir, "out.mp4");
     const posterFile = path.join(workDir, "poster.webp");
 
-    const { width, codec } = await probe(src);
+    const { width, height, codec, pixFmt, bitRate } = await probe(src);
+    const longEdge = Math.max(width ?? 0, height ?? 0);
     /*
      * Re-encode when the clip is oversized, too wide, or in a codec that can't
      * live in an MP4. That last case covers two common uploads: WebM from a
@@ -152,11 +184,18 @@ export async function prepareVideoFile(
      * Chrome or on most Android phones, so converting it is a compatibility fix
      * as much as a size one.
      */
+    /*
+     * Re-encode only when the clip genuinely needs it. A clip that is already
+     * 8-bit H.264, no larger than the site shows and at a sensible bitrate —
+     * which is what the admin's browser now produces before uploading — only
+     * needs its metadata moved to the front, which takes seconds.
+     */
     const needsReencode =
       codec === null ||
       !MP4_SAFE_VIDEO.has(codec) ||
-      srcBytes > TRANSCODE_OVER_BYTES ||
-      (width !== null && width > MAX_EDGE);
+      (pixFmt !== null && !WEB_SAFE_PIXEL_FORMATS.has(pixFmt)) ||
+      longEdge > MAX_EDGE ||
+      (srcBytes > TRANSCODE_OVER_BYTES && (bitRate ?? 0) > MAX_BITRATE);
     let transcoded = needsReencode;
 
     if (needsReencode) {
@@ -208,7 +247,7 @@ export async function prepareVideoFile(
       : { ...original, poster };
   } catch (err) {
     console.error("[upload] video preparation failed, storing the original:", err);
-    return original;
+    return { ...original, failed: true };
   }
 }
 
