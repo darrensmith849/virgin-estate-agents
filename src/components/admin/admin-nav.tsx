@@ -101,10 +101,10 @@ export function AdminNav({
           <form action={logout}>
             <button
               type="submit"
-              aria-label="Sign out"
-              className="rounded-md p-1.5 text-muted hover:bg-line hover:text-ink"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-ink-soft hover:bg-line hover:text-ink"
             >
-              <LogOut size={16} />
+              <LogOut size={15} />
+              Log out
             </button>
           </form>
         </div>
