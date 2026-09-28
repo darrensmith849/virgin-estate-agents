@@ -168,7 +168,10 @@ export function SiteFooter() {
       {/* Extra bottom padding on phones so the floating WhatsApp/assistant
           buttons never sit on top of the last row of links. */}
       <div className="border-t border-line">
-        <Container className="flex flex-col items-center justify-between gap-3 py-6 pb-24 text-xs text-muted sm:flex-row sm:pb-6">
+        {/* Room on the right for the floating WhatsApp / "Ask us" buttons,
+            which otherwise sit on top of Privacy / Terms on any screen
+            narrower than about 1450px. Phones stack and pad the bottom. */}
+        <Container className="flex flex-col items-center justify-between gap-3 py-6 pb-24 text-xs text-muted sm:flex-row sm:pb-6 sm:pr-40">
           <p>
             © {year} {SITE.name}. All rights reserved.
           </p>
