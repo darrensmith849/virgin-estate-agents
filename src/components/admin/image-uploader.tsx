@@ -15,7 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 import { mediaSrc } from "@/lib/media";
 import { shrinkImages } from "@/lib/client-image";
-import { uploadVideo } from "@/lib/client-video-upload";
+import { sendVideo, waitForVideo, type UploadedVideo } from "@/lib/client-video-upload";
+import { compressVideoInBrowser } from "@/lib/client-video-compress";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
@@ -43,8 +44,16 @@ export function ImageUploader({
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
 
-  /* A video is only attached to the listing once it has finished optimising,
-     so leaving mid-way would lose it. Ask before the page is closed. */
+  /** Videos uploaded and now being finished on the server. */
+  const [processing, setProcessing] = useState<{ id: string; name: string }[]>([]);
+  /** Videos finishing on the server that this page didn't start (admin came back). */
+  const [serverPending, setServerPending] = useState(0);
+  /** A file is being dragged over the box. */
+  const [dragActive, setDragActive] = useState(false);
+
+  /* Compressing and uploading happen in this page, so leaving mid-way would
+     lose the video. Ask before it's closed. (Once uploaded, the server
+     finishes on its own, so there's no need to stay.) */
   useEffect(() => {
     if (!uploading) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -55,6 +64,48 @@ export function ImageUploader({
     return () => window.removeEventListener("beforeunload", warn);
   }, [uploading]);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+
+  /* Pick up videos that were still being processed when the admin left the
+     page: ask once on load, then keep checking while any are pending. */
+  useEffect(() => {
+    if (!currentId) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = async () => {
+      try {
+        const res = await fetch(`/admin/api/upload/video?listing=${currentId}`, { cache: "no-store" });
+        if (!res.ok || stopped) return;
+        const data = (await res.json()) as { pending: number; videos: Vid[] };
+        setVideos((prev) => {
+          const known = new Set(prev.map((v) => v.id));
+          const added = data.videos.filter((v) => !known.has(v.id));
+          return added.length ? [...prev, ...added] : prev;
+        });
+        setServerPending(data.pending);
+        if (data.pending > 0) timer = setTimeout(check, 5000);
+      } catch {
+        // Offline for a moment: the next page load will catch up.
+      }
+    };
+    check();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentId]);
+
+  /** Add a finished video to the grid (once), attaching it if the server didn't. */
+  async function addFinishedVideo(listing: string, done: UploadedVideo) {
+    let video = done.video;
+    if (!video) {
+      const [added] = await addListingVideos(listing, [{ ...done, title: done.alt }]);
+      if (added) video = { id: added.id, url: added.url, title: added.title };
+    }
+    if (video) {
+      const v = video;
+      setVideos((prev) => (prev.some((x) => x.id === v.id) ? prev : [...prev, v]));
+    }
+  }
 
   /*
    * Keep each request well under the proxy's 110MB body limit. Compressed
@@ -205,41 +256,42 @@ export function ImageUploader({
       }
       if (videoFiles.length) {
         /*
-         * Videos go one at a time through the chunked endpoint, which has no
-         * 100MB ceiling and compresses in the background — the regular route
-         * can't take a large HD clip in a single request.
+         * Each video is first shrunk in the browser to 1080p H.264 (when the
+         * browser can), then sent in pieces. Once the last piece is in, the
+         * server finishes and attaches it on its own, so the button frees up
+         * straight away and the admin can carry on or leave.
          */
-        const created: { key: string; url: string; alt: string | null }[] = [];
+        const listing = id;
         const problems: string[] = [];
-        for (const [index, file] of videoFiles.entries()) {
+        for (const [index, original] of videoFiles.entries()) {
           const label =
             videoFiles.length > 1 ? `video ${index + 1} of ${videoFiles.length}` : "video";
           try {
-            created.push(
-              await uploadVideo(file, `listings/${id}`, (p) =>
-                setProgress(
-                  p.phase === "uploading"
-                    ? `Uploading ${label}… ${p.percent}%`
-                    : `Optimising ${label}… keep this page open`,
-                ),
-              ),
+            setProgress(`Preparing ${label}…`);
+            const smaller = await compressVideoInBrowser(original, (f) =>
+              setProgress(`Compressing ${label}… ${Math.round(f * 100)}%`),
             );
+            const file = smaller ?? original;
+            if (smaller) {
+              console.log(
+                `[uploader] ${original.name}: ${(original.size / 1048576).toFixed(0)}MB -> ${(smaller.size / 1048576).toFixed(0)}MB before upload`,
+              );
+            }
+            const uploadId = await sendVideo(file, `listings/${listing}`, (p) => {
+              if (p.phase === "uploading") setProgress(`Uploading ${label}… ${p.percent}%`);
+            });
+            setProcessing((prev) => [...prev, { id: uploadId, name: original.name }]);
+            waitForVideo(uploadId)
+              .then((done) => addFinishedVideo(listing, done))
+              .catch((e) =>
+                setError(e instanceof Error ? e.message : `"${original.name}" failed to process.`),
+              )
+              .finally(() => setProcessing((prev) => prev.filter((p) => p.id !== uploadId)));
           } catch (e) {
-            problems.push(e instanceof Error ? e.message : `"${file.name}" failed to upload.`);
+            problems.push(e instanceof Error ? e.message : `"${original.name}" failed to upload.`);
           }
         }
-        if (problems.length > 0) {
-          if (created.length === 0) throw new Error(problems.join(" "));
-          setError(problems.join(" "));
-        }
-        const added = await addListingVideos(
-          id,
-          created.map((file) => ({ ...file, title: file.alt })),
-        );
-        setVideos((prev) => [
-          ...prev,
-          ...added.map((video) => ({ id: video.id, url: video.url, title: video.title })),
-        ]);
+        if (problems.length > 0) setError(problems.join(" "));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -307,14 +359,49 @@ export function ImageUploader({
     });
   }
 
+  /** Only files dragged in from outside count — not photos being reordered. */
+  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+  const pendingCount = processing.length + Math.max(0, serverPending - processing.length);
+
   return (
-    <div className="rounded-xl border border-line bg-card p-6">
+    <div
+      className={cn(
+        "relative rounded-xl border bg-card p-6 transition-colors",
+        dragActive ? "border-brand ring-2 ring-brand/30" : "border-line",
+      )}
+      onDragEnter={(e) => {
+        if (isFileDrag(e) && !uploading) setDragActive(true);
+      }}
+      onDragOver={(e) => {
+        if (!isFileDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = uploading ? "none" : "copy";
+      }}
+      onDragLeave={(e) => {
+        // Leaving for a child element isn't leaving the box.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragActive(false);
+      }}
+      onDrop={(e) => {
+        if (!isFileDrag(e)) return;
+        e.preventDefault();
+        setDragActive(false);
+        if (!uploading) handleFiles(e.dataTransfer.files);
+      }}
+    >
+      {dragActive && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-brand-50/90">
+          <p className="flex items-center gap-2 text-sm font-medium text-brand">
+            <UploadCloud size={18} /> Drop photos or videos to add them
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-lg">Photos &amp; videos</h2>
           <p className="mt-1 text-sm text-muted">
             The first photo is the cover shown on the site · drag to reorder, or
             star a photo to move it to the front. Videos appear on the listing page.
+            Drag files straight in from your computer, or use the button.
           </p>
         </div>
         <button
@@ -337,11 +424,28 @@ export function ImageUploader({
           {error}
         </p>
       )}
-
-      {images.length === 0 && videos.length === 0 ? (
-        <p className="mt-5 rounded-lg border border-dashed border-line px-6 py-10 text-center text-sm text-muted">
-          No photos or videos yet — use the “Add photos &amp; videos” button above.
+      {uploading && (
+        <p className="mt-3 text-xs text-muted">
+          Keep this page open until the upload finishes.
         </p>
+      )}
+      {!uploading && pendingCount > 0 && (
+        <p className="mt-3 text-xs text-muted" role="status">
+          {pendingCount === 1 ? "A video is" : `${pendingCount} videos are`} being finished on the
+          server — you can carry on or leave this page; it will appear here when ready.
+        </p>
+      )}
+
+      {images.length === 0 && videos.length === 0 && pendingCount === 0 ? (
+        <button
+          type="button"
+          onClick={() => mediaInputRef.current?.click()}
+          disabled={uploading}
+          className="mt-5 flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-line px-6 py-10 text-center text-sm text-muted transition-colors hover:border-brand/40 hover:bg-paper-2"
+        >
+          <UploadCloud size={22} className="text-muted" />
+          Drag photos and videos here, or click to choose them.
+        </button>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {images.map((img, index) => (
@@ -421,6 +525,20 @@ export function ImageUploader({
               <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-2 py-1 text-xs text-white">
                 {video.title}
               </span>
+            )}
+          </div>
+        ))}
+
+        {Array.from({ length: pendingCount }, (_, i) => (
+          <div
+            key={`pending-${i}`}
+            className="relative flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-paper-2 px-3 text-center text-xs text-muted"
+          >
+            <Loader2 size={18} className="animate-spin" />
+            {processing[i]?.name ? (
+              <span className="line-clamp-2">Finishing “{processing[i].name}”</span>
+            ) : (
+              "Finishing video"
             )}
           </div>
         ))}

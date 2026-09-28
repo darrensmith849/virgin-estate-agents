@@ -8,6 +8,7 @@ import type { Agent, Listing } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { LocationPicker } from "@/components/admin/location-picker";
 import { PasteSpecs } from "@/components/admin/paste-specs";
+import { PasteFeatures } from "@/components/admin/paste-features";
 import type { ParsedSpecs } from "@/lib/spec-parser";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
@@ -807,6 +808,10 @@ export function ListingForm({
         title="Features"
         description="Tick what applies, or add anything that isn't listed. Edit the standard list in Settings."
       >
+        <PasteFeatures
+          options={featureOptions}
+          onApply={(names) => applyParsed({ standard: {}, specTypes: [], features: names, other: [], unmatched: [] })}
+        />
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {featureOptions.map((f) => (
             <label key={f} className="group flex items-center gap-2.5 text-sm text-ink-soft">
