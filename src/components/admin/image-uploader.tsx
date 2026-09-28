@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { Star, Trash2, UploadCloud, GripVertical, Loader2, Play } from "lucide-react";
+import { Star, Trash2, UploadCloud, GripVertical, Loader2, Play, X } from "lucide-react";
 
 import {
   addListingImages,
@@ -17,6 +17,7 @@ import { shrinkImages } from "@/lib/client-image";
 import { sendVideo } from "@/lib/client-video-upload";
 import { compressAndUpload } from "@/lib/client-video-compress";
 import { isZip, unzipMedia } from "@/lib/client-unzip";
+import { abortable, throwIfCancelled } from "@/lib/client-cancel";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null; posterUrl?: string | null };
@@ -91,6 +92,12 @@ export function ImageUploader({
   const reportedFailures = useRef(new Set<string>());
   /** A file is being dragged over the box. */
   const [dragActive, setDragActive] = useState(false);
+  /** Stops the upload in progress; null when nothing is running. */
+  const cancelRef = useRef<AbortController | null>(null);
+  /** The chosen file hasn't opened after several seconds (e.g. still in iCloud). */
+  const [slowToOpen, setSlowToOpen] = useState(false);
+  /** A neutral message — cancelled, or files in a zip that were skipped. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   /* Compressing and uploading happen in this page, so leaving mid-way would
      lose the video. Ask before it's closed. (Once uploaded, the server
@@ -187,6 +194,7 @@ export function ImageUploader({
     id: string,
     files: File[],
     mediaType: "image" | "video",
+    signal?: AbortSignal,
   ): Promise<{
     files: { key: string; url: string; alt: string | null }[];
     skipped: string[];
@@ -195,7 +203,7 @@ export function ImageUploader({
     files.forEach((f) => fd.append("files", f));
     fd.append("prefix", `listings/${id}`);
     fd.append("mediaType", mediaType);
-    const res = await fetch("/admin/api/upload", { method: "POST", body: fd });
+    const res = await fetch("/admin/api/upload", { method: "POST", body: fd, signal });
 
     /*
      * Read the body defensively. A request rejected by the proxy for being too
@@ -229,21 +237,24 @@ export function ImageUploader({
     id: string,
     files: File[],
     mediaType: "image" | "video",
+    signal?: AbortSignal,
   ): Promise<{ key: string; url: string; alt: string | null }[]> {
     const chunks = chunkBySize(files);
     const out: { key: string; url: string; alt: string | null }[] = [];
     const problems: string[] = [];
 
     for (const [index, chunk] of chunks.entries()) {
+      throwIfCancelled(signal);
       if (chunks.length > 1) {
         setProgress(`Uploading ${index + 1} of ${chunks.length}…`);
       }
       try {
-        const result = await postGroup(id, chunk, mediaType);
+        const result = await postGroup(id, chunk, mediaType, signal);
         out.push(...result.files);
         // Files the server declined individually — named, so they can be fixed.
         problems.push(...result.skipped);
       } catch (e) {
+        throwIfCancelled(signal);
         problems.push(e instanceof Error ? e.message : "Upload failed");
       }
     }
@@ -261,48 +272,83 @@ export function ImageUploader({
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     let all = Array.from(files);
-    let zipNote: string | null = null;
 
-    // Unpack any .zip first: its photos and videos join the rest.
-    const zips = all.filter(isZip);
-    if (zips.length) {
-      setUploading(true);
-      const skipped: string[] = [];
-      try {
-        for (const zip of zips) {
-          setProgress(`Unzipping ${zip.name}…`, 0);
-          const out = await unzipMedia(zip, (f) =>
-            setProgress(`Unzipping ${zip.name}… ${Math.round(f * 100)}%`),
-          );
-          all = [...all, ...out.files];
-          skipped.push(...out.skipped);
-        }
-      } catch {
-        setError("That zip file couldn't be opened. Try unzipping it and adding the files instead.");
-      } finally {
-        setUploading(false);
-        setProgress(null);
-      }
-      all = all.filter((f) => !isZip(f));
-      if (skipped.length) {
-        zipNote =
-          skipped.length === 1
-            ? `Skipped 1 file in the zip that isn't a photo or video (${skipped[0]}).`
-            : `Skipped ${skipped.length} files in the zip that aren't photos or videos.`;
-      }
-    }
-
-    const imageFiles = all.filter((f) => f.type.startsWith("image/"));
-    const videoFiles = all.filter((f) => f.type.startsWith("video/"));
-    if (imageFiles.length === 0 && videoFiles.length === 0) {
-      setError(zips.length ? "No photos or videos were found in that zip." : "Please choose image or video files.");
-      return;
-    }
+    // One Cancel button stops whatever is running — unzipping, compressing or
+    // sending — and once cancelled, nothing from this run touches the page.
+    const controller = new AbortController();
+    cancelRef.current = controller;
+    const { signal } = controller;
+    const report = (text: string | null, pct?: number | null) => {
+      if (!signal.aborted) setProgress(text, pct);
+    };
+    /*
+     * A file the computer has to fetch before it can be read (one kept in
+     * iCloud Drive, say) gives no progress at all until it has arrived. After
+     * a few quiet seconds, say so rather than showing a bar that never moves.
+     * Returns the function to call once the file has opened.
+     */
+    const watchOpening = () => {
+      const timer = setTimeout(() => {
+        if (!signal.aborted) setSlowToOpen(true);
+      }, 6000);
+      return () => {
+        clearTimeout(timer);
+        setSlowToOpen(false);
+      };
+    };
 
     setError(null);
-    if (zipNote) setError(zipNote);
+    setNotice(null);
     setUploading(true);
     try {
+      // Unpack any .zip first: its photos and videos join the rest.
+      const zips = all.filter(isZip);
+      if (zips.length) {
+        const skipped: string[] = [];
+        for (const zip of zips) {
+          report(`Opening ${zip.name}…`, null);
+          const opened = watchOpening();
+          try {
+            const out = await unzipMedia(
+              zip,
+              (f) => {
+                opened();
+                report(`Unzipping ${zip.name}… ${Math.round(f * 100)}%`);
+              },
+              signal,
+            );
+            all = [...all, ...out.files];
+            skipped.push(...out.skipped);
+          } catch (e) {
+            throwIfCancelled(signal);
+            console.warn("[uploader] unzip failed:", e);
+            throw new Error(
+              `"${zip.name}" couldn't be opened. Try unzipping it and adding the files instead.`,
+            );
+          } finally {
+            opened();
+          }
+        }
+        all = all.filter((f) => !isZip(f));
+        if (skipped.length) {
+          setNotice(
+            skipped.length === 1
+              ? `Skipped 1 file in the zip that isn't a photo or video (${skipped[0]}).`
+              : `Skipped ${skipped.length} files in the zip that aren't photos or videos.`,
+          );
+        }
+      }
+
+      const imageFiles = all.filter((f) => f.type.startsWith("image/"));
+      const videoFiles = all.filter((f) => f.type.startsWith("video/"));
+      if (imageFiles.length === 0 && videoFiles.length === 0) {
+        throw new Error(
+          zips.length
+            ? "No photos or videos were found in that zip."
+            : "Please choose image or video files.",
+        );
+      }
+
       // Ensure a listing exists to attach to (creates a draft on the new page).
       let id = currentId;
       if (!id) {
@@ -318,17 +364,19 @@ export function ImageUploader({
          * first — this is what turns a 12MB original into a few hundred KB
          * before it leaves the machine.
          */
-        setProgress(`Compressing 0 of ${imageFiles.length}…`);
-        const shrunk = await shrinkImages(imageFiles, (done, total) =>
-          setProgress(`Compressing ${done} of ${total}…`),
+        report(`Compressing 0 of ${imageFiles.length}…`);
+        const shrunk = await abortable(
+          shrinkImages(imageFiles, (done, total) => report(`Compressing ${done} of ${total}…`)),
+          signal,
         );
         const saved =
           shrunk.reduce((n, r) => n + r.fromBytes - r.file.size, 0) / 1048576;
         if (saved > 0.5) {
           console.log(`[uploader] compressed before upload, saving ${saved.toFixed(1)}MB`);
         }
-        setProgress("Uploading…");
-        const created = await uploadGroup(id, shrunk.map((r) => r.file), "image");
+        report("Uploading…");
+        const created = await uploadGroup(id, shrunk.map((r) => r.file), "image", signal);
+        throwIfCancelled(signal);
         const added = await addListingImages(id, created);
         setImages((prev) => [
           ...prev,
@@ -347,38 +395,72 @@ export function ImageUploader({
         for (const [index, original] of videoFiles.entries()) {
           const label =
             videoFiles.length > 1 ? `video ${index + 1} of ${videoFiles.length}` : "video";
+          const opened = watchOpening();
           try {
-            setProgress(`Preparing ${label}…`);
+            report(`Preparing ${label}…`, null);
             // Compress and upload at the same time where the browser can;
             // otherwise send the original as before.
-            let uploadId = await compressAndUpload(original, `listings/${listing}`, (p) => {
-              const pct = Math.round(p.converted * 100);
-              setProgress(
-                p.converted < 1
-                  ? `Compressing & uploading ${label}… ${pct}%`
-                  : `Uploading ${label}… ${p.sent} of ${p.produced}`,
-              );
-            });
+            let uploadId = await compressAndUpload(
+              original,
+              `listings/${listing}`,
+              (p) => {
+                opened();
+                const pct = Math.round(p.converted * 100);
+                report(
+                  p.converted < 1
+                    ? `Compressing & uploading ${label}… ${pct}%`
+                    : `Uploading ${label}… ${p.sent} of ${p.produced}`,
+                );
+              },
+              signal,
+            );
             if (!uploadId) {
-              uploadId = await sendVideo(original, `listings/${listing}`, (p) => {
-                if (p.phase === "uploading") setProgress(`Uploading ${label}… ${p.percent}%`);
-              });
+              uploadId = await sendVideo(
+                original,
+                `listings/${listing}`,
+                (p) => {
+                  opened();
+                  if (p.phase === "uploading") report(`Uploading ${label}… ${p.percent}%`);
+                },
+                signal,
+              );
             }
             // The server finishes and attaches it; the tiles below follow it.
             setPollKey((k) => k + 1);
           } catch (e) {
+            throwIfCancelled(signal);
             problems.push(e instanceof Error ? e.message : `"${original.name}" failed to upload.`);
+          } finally {
+            opened();
           }
         }
         if (problems.length > 0) setError(problems.join(" "));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      if (!signal.aborted) setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
-      setUploading(false);
-      setProgress(null);
+      // A cancelled run has already reset the panel (and a newer run may own it).
+      if (cancelRef.current === controller) {
+        cancelRef.current = null;
+        setUploading(false);
+        setProgress(null);
+        setSlowToOpen(false);
+      }
       if (mediaInputRef.current) mediaInputRef.current.value = "";
     }
+  }
+
+  /** Stop the upload in progress. Anything already added to the listing stays. */
+  function cancelUpload() {
+    const controller = cancelRef.current;
+    if (!controller) return;
+    cancelRef.current = null;
+    controller.abort();
+    setUploading(false);
+    setProgress(null);
+    setSlowToOpen(false);
+    setNotice("Upload cancelled.");
+    if (mediaInputRef.current) mediaInputRef.current.value = "";
   }
 
   function handleDelete(id: string) {
@@ -504,16 +586,39 @@ export function ImageUploader({
           {error}
         </p>
       )}
+      {notice && (
+        <p className="mt-4 rounded-[var(--radius)] bg-paper-2 px-3 py-2 text-sm text-ink-soft" role="status">
+          {notice}
+        </p>
+      )}
       {uploading && (
         <div className="mt-4 rounded-lg border border-line bg-paper px-4 py-3">
-          <div className="flex items-baseline justify-between gap-3 text-sm">
-            <span className="text-ink-soft">{progress ?? "Working…"}</span>
-            {percent !== null && <span className="tabular-nums text-muted">{percent}%</span>}
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 break-words text-ink-soft">{progress ?? "Working…"}</span>
+            <div className="flex shrink-0 items-center gap-3">
+              {percent !== null && <span className="tabular-nums text-muted">{percent}%</span>}
+              <button
+                type="button"
+                onClick={cancelUpload}
+                className="inline-flex items-center gap-1 rounded-[var(--radius)] border border-line bg-card px-2.5 py-1 text-xs font-medium text-ink-soft transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+              >
+                <X size={13} />
+                Cancel
+              </button>
+            </div>
           </div>
           <ProgressBar value={percent} className="mt-2" />
-          <p className="mt-2 text-xs text-muted">
-            Keep this page open until the upload finishes — the server does the rest.
-          </p>
+          {slowToOpen ? (
+            <p className="mt-2 text-xs text-amber-800" role="status">
+              Still waiting for your computer to open this file. If it&rsquo;s kept in iCloud
+              Drive, your Mac downloads it first, and a big file can take a long time. You can
+              cancel, open the file on your Mac to download it, then add it again.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-muted">
+              Keep this page open until the upload finishes — the server does the rest.
+            </p>
+          )}
         </div>
       )}
       {!uploading && pendingCount > 0 && (

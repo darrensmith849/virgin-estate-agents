@@ -6,6 +6,8 @@
  * landed the server compresses the clip, and this polls until it is stored.
  */
 
+import { UploadCancelled, abortable, throwIfCancelled } from "@/lib/client-cancel";
+
 const ENDPOINT = "/admin/api/upload/video";
 const CHUNK_BYTES = 8 * 1024 * 1024;
 const RETRIES = 5;
@@ -37,15 +39,18 @@ async function readError(res: Response): Promise<string> {
 /** Errors worth retrying: the network, the proxy, or the server hiccuping. */
 class Permanent extends Error {}
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < RETRIES; attempt++) {
+    throwIfCancelled(signal);
     try {
       return await fn();
     } catch (e) {
+      // A cancelled request isn't a dropped connection: don't retry it.
+      throwIfCancelled(signal);
       if (e instanceof Permanent) throw e;
       lastError = e;
-      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+      await abortable(new Promise((r) => setTimeout(r, 1000 * 2 ** attempt)), signal);
     }
   }
   throw lastError instanceof Error
@@ -92,6 +97,8 @@ export class ChunkedUpload {
   readonly chunkBytes = CHUNK_BYTES;
   private inFlight = new Set<Promise<void>>();
   private failure: Error | null = null;
+  /** Fired by abort(): stops pieces in flight and any retries. */
+  private stop = new AbortController();
   private constructor(readonly id: string) {}
 
   static async start(meta: {
@@ -126,12 +133,15 @@ export class ChunkedUpload {
       await Promise.race(this.inFlight);
       if (this.failure) throw this.failure;
     }
-    const task = withRetry(() =>
-      send(`${ENDPOINT}?id=${encodeURIComponent(this.id)}&index=${index}`, {
-        method: "PUT",
-        headers: { "content-type": "application/octet-stream" },
-        body,
-      }),
+    const task = withRetry(
+      () =>
+        send(`${ENDPOINT}?id=${encodeURIComponent(this.id)}&index=${index}`, {
+          method: "PUT",
+          headers: { "content-type": "application/octet-stream" },
+          body,
+          signal: this.stop.signal,
+        }),
+      this.stop.signal,
     )
       .then(() => onSent?.())
       .catch((e: unknown) => {
@@ -156,6 +166,8 @@ export class ChunkedUpload {
 
   /** Give up and let the server clear away what arrived. Best effort. */
   async abort(): Promise<void> {
+    if (this.stop.signal.aborted) return;
+    this.stop.abort();
     await fetch(`${ENDPOINT}?op=abort`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -173,24 +185,40 @@ export async function sendVideo(
   file: File,
   prefix: string,
   onProgress: (p: VideoProgress) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
+  throwIfCancelled(signal);
   const upload = await ChunkedUpload.start({
     prefix,
     filename: file.name,
     type: file.type,
     size: file.size,
   });
-  const total = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
-  let done = 0;
-  onProgress({ phase: "uploading", percent: 0 });
-  for (let index = 0; index < total; index++) {
-    await upload.put(index, file.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES), () => {
-      done++;
-      onProgress({ phase: "uploading", percent: Math.round((done / total) * 100) });
-    });
+  const onAbort = () => void upload.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    throwIfCancelled(signal);
+    const total = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
+    let done = 0;
+    onProgress({ phase: "uploading", percent: 0 });
+    for (let index = 0; index < total; index++) {
+      throwIfCancelled(signal);
+      await upload.put(index, file.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES), () => {
+        done++;
+        onProgress({ phase: "uploading", percent: Math.round((done / total) * 100) });
+      });
+    }
+    await upload.finish();
+    return upload.id;
+  } catch (err) {
+    if (signal?.aborted) {
+      await upload.abort();
+      throw new UploadCancelled();
+    }
+    throw err;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
-  await upload.finish();
-  return upload.id;
 }
 
 /** Wait for the server to finish processing an uploaded video. */

@@ -10,7 +10,14 @@
  *  - ZIP64 is understood, so single files over 2GB/4GB work.
  * Folders, macOS "__MACOSX" metadata and anything that isn't a photo or video
  * are skipped.
+ *
+ * `onProgress(0)` is reported the moment the zip could be opened. Until then
+ * the computer may still be fetching it (a file kept in iCloud Drive is
+ * downloaded in full before the first byte can be read), which the uploader
+ * explains rather than showing a bar that never moves.
  */
+
+import { abortable, throwIfCancelled } from "@/lib/client-cancel";
 
 const TYPES: Record<string, string> = {
   jpg: "image/jpeg",
@@ -132,8 +139,10 @@ async function readDirectory(zip: Blob): Promise<Entry[]> {
 export async function unzipMedia(
   zip: File,
   onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
 ): Promise<{ files: File[]; skipped: string[] }> {
-  const entries = await readDirectory(zip);
+  const entries = await abortable(readDirectory(zip), signal);
+  onProgress?.(0);
   const files: File[] = [];
   const skipped: string[] = [];
 
@@ -153,11 +162,15 @@ export async function unzipMedia(
   let doneBytes = 0;
 
   for (const en of wanted) {
+    throwIfCancelled(signal);
     const base = en.name.split("/").pop() ?? en.name;
     const type = TYPES[base.split(".").pop()!.toLowerCase()];
     try {
       // The data starts after the entry's local header (its own name/extra).
-      const head = await bytes(zip, en.localHeaderOffset, en.localHeaderOffset + 30);
+      const head = await abortable(
+        bytes(zip, en.localHeaderOffset, en.localHeaderOffset + 30),
+        signal,
+      );
       if (head.getUint32(0, true) !== 0x04034b50) throw new Error("bad header");
       const start = en.localHeaderOffset + 30 + head.getUint16(26, true) + head.getUint16(28, true);
       const raw = zip.slice(start, start + en.compressedSize);
@@ -170,20 +183,26 @@ export async function unzipMedia(
         const counted = raw.stream().pipeThrough(
           new TransformStream<Uint8Array, Uint8Array>({
             transform(chunk, ctl) {
+              // Stops the read (and the decompression after it) on Cancel.
+              throwIfCancelled(signal);
               seen += chunk.byteLength;
               onProgress?.(Math.min(1, (doneBytes + seen) / totalBytes));
               ctl.enqueue(chunk);
             },
           }),
         );
-        blob = await new Response(
-          counted.pipeThrough(new DecompressionStream("deflate-raw") as unknown as TransformStream<Uint8Array, Uint8Array>),
-        ).blob();
+        blob = await abortable(
+          new Response(
+            counted.pipeThrough(new DecompressionStream("deflate-raw") as unknown as TransformStream<Uint8Array, Uint8Array>),
+          ).blob(),
+          signal,
+        );
       } else {
         throw new Error(`unsupported compression ${en.method}`);
       }
       files.push(new File([blob], base, { type }));
-    } catch {
+    } catch (err) {
+      if (signal?.aborted) throw err;
       skipped.push(base);
     }
     doneBytes += en.compressedSize;

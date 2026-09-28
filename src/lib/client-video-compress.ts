@@ -16,6 +16,9 @@
  * cancelling anything half-sent) and the caller uploads the original as before.
  */
 
+import type { Conversion } from "mediabunny";
+
+import { UploadCancelled, abortable, throwIfCancelled } from "@/lib/client-cancel";
 import { ChunkedUpload } from "@/lib/client-video-upload";
 
 /** Below this, uploading as-is is quicker than converting. */
@@ -40,29 +43,43 @@ export type CompressProgress = {
 /**
  * Convert `file` and upload it as it goes. Resolves to the upload id (the
  * server then finishes and attaches it), or null if the original should be
- * uploaded instead.
+ * uploaded instead. Throws UploadCancelled if `signal` fires, having stopped
+ * the conversion and told the server to discard what it received.
  */
 export async function compressAndUpload(
   file: File,
   prefix: string,
   onProgress: (p: CompressProgress) => void,
+  signal?: AbortSignal,
 ): Promise<string | null> {
+  throwIfCancelled(signal);
   if (file.size < MIN_BYTES) return null;
   if (typeof window === "undefined" || typeof VideoEncoder === "undefined") return null;
 
   let upload: ChunkedUpload | null = null;
+  let conversion: Conversion | null = null;
+  const onAbort = () => {
+    void conversion?.cancel();
+    void upload?.abort();
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
   try {
     const mb = await import("mediabunny");
     const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
-    const video = await input.getPrimaryVideoTrack();
+    // Reading the header can wait on the computer (a file still in iCloud,
+    // say), so let Cancel through rather than waiting with it.
+    const video = await abortable(input.getPrimaryVideoTrack(), signal);
     if (!video) return null;
 
-    const [width, height, codec, duration] = await Promise.all([
-      video.getDisplayWidth(),
-      video.getDisplayHeight(),
-      video.getCodec(),
-      input.computeDuration(),
-    ]);
+    const [width, height, codec, duration] = await abortable(
+      Promise.all([
+        video.getDisplayWidth(),
+        video.getDisplayHeight(),
+        video.getCodec(),
+        input.computeDuration(),
+      ]),
+      signal,
+    );
     if (!width || !height || !duration) return null;
 
     // Already what the site needs: don't spend the user's time re-encoding.
@@ -86,6 +103,7 @@ export async function compressAndUpload(
     if (!(await mb.canEncodeVideo("avc", { width: outW, height: outH, bitrate }))) return null;
 
     // Everything checks out: open the upload, then stream into it.
+    throwIfCancelled(signal);
     const base = file.name.replace(/\.[^.]+$/, "") || "video";
     upload = await ChunkedUpload.start({
       prefix,
@@ -142,7 +160,7 @@ export async function compressAndUpload(
       format: new mb.Mp4OutputFormat({ fastStart: "fragmented" }),
       target: new mb.StreamTarget(sink),
     });
-    const conversion = await mb.Conversion.init({
+    conversion = await mb.Conversion.init({
       input,
       output,
       tracks: "primary",
@@ -166,12 +184,14 @@ export async function compressAndUpload(
       await upload.abort();
       return null;
     }
+    throwIfCancelled(signal);
 
     conversion.onProgress = (fraction) => {
       converted = Math.min(1, Math.max(0, fraction));
       report();
     };
     await conversion.execute();
+    throwIfCancelled(signal);
 
     // Send whatever is left as the final, shorter piece.
     if (filled > 0) await ship(buffer.slice(0, filled));
@@ -183,8 +203,11 @@ export async function compressAndUpload(
     );
     return upload.id;
   } catch (err) {
-    console.warn("[video] in-browser compression unavailable, uploading the original:", err);
     await upload?.abort();
+    if (signal?.aborted) throw new UploadCancelled();
+    console.warn("[video] in-browser compression unavailable, uploading the original:", err);
     return null;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
 }
