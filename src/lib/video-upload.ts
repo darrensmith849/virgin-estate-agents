@@ -54,6 +54,11 @@ function processTimeoutMs(bytes: number): number {
 }
 /** Abandoned uploads are swept after this long without activity. */
 const IDLE_EXPIRY_MS = 6 * 60 * 60 * 1000;
+/** An upload with no new piece for this long has been abandoned (the page was
+ *  closed or lost its connection): clear it rather than show it as pending. */
+const STALLED_UPLOAD_MS = 5 * 60 * 1000;
+/** Finished or failed uploads stay reportable for this long. */
+const REPORT_FOR_MS = 30 * 60 * 1000;
 /** Uploads in flight at once. Each can be 2GB of scratch space. */
 export const MAX_ACTIVE_UPLOADS = 4;
 
@@ -97,6 +102,12 @@ type Session = {
   result?: VideoUploadResult;
   error?: string;
   touched: number;
+  /** 0–1 through the server's own processing, when it reports it. */
+  progress: number;
+  /** Processing has actually begun (rather than waiting its turn). */
+  running?: boolean;
+  /** When it finished or failed, for reporting it back for a while after. */
+  endedAt?: number;
 };
 
 // Kept on globalThis so dev-mode reloads don't orphan in-flight uploads.
@@ -155,13 +166,66 @@ async function sweep() {
       }
     }
   }
+  await clearStale();
+}
+
+/** Drop abandoned uploads and old results. Cheap; safe to call often. */
+async function clearStale() {
+  const now = Date.now();
   for (const [id, s] of sessions) {
     if (s.state === "processing") continue;
-    if (now - s.touched > IDLE_EXPIRY_MS) {
+    const stalled = s.state === "receiving" && now - s.touched > STALLED_UPLOAD_MS;
+    const old = s.state !== "receiving" && now - (s.endedAt ?? s.touched) > Math.max(REPORT_FOR_MS, 0);
+    if (stalled || old || now - s.touched > IDLE_EXPIRY_MS) {
+      if (stalled) console.log(`[upload] cleared an abandoned upload of "${s.filename}"`);
       sessions.delete(id);
       await rm(s.dir, { recursive: true, force: true }).catch(() => {});
     }
   }
+}
+
+/** What a listing's edit page needs to show about its videos in flight. */
+export type VideoActivity = {
+  id: string;
+  name: string;
+  /** uploading: pieces still arriving; processing: the server is finishing. */
+  stage: "uploading" | "processing" | "error";
+  /** 0–100, or null when there's no meaningful figure yet. */
+  percent: number | null;
+  /** Uploading, but no piece has arrived for over a minute — most likely the
+   *  page that was sending it was closed. Cleared automatically soon after. */
+  interrupted?: boolean;
+  error?: string;
+};
+
+export async function videoActivityFor(listingId: string): Promise<VideoActivity[]> {
+  await clearStale();
+  const out: VideoActivity[] = [];
+  for (const s of sessions.values()) {
+    if (listingIdFrom(s.prefix) !== listingId) continue;
+    if (s.state === "receiving") {
+      const got = [...s.lengths.values()].reduce((a, b) => a + b, 0);
+      out.push({
+        id: s.id,
+        name: s.filename,
+        stage: "uploading",
+        // A streamed upload's size is only an estimate until it finishes.
+        percent: s.size > 0 ? Math.min(99, Math.round((got / s.size) * 100)) : null,
+        interrupted: Date.now() - s.touched > 60_000,
+      });
+    } else if (s.state === "processing") {
+      out.push({
+        id: s.id,
+        name: s.filename,
+        stage: "processing",
+        // Waiting its turn behind another video: no figure yet.
+        percent: s.running ? Math.round(s.progress * 100) : null,
+      });
+    } else if (s.state === "error") {
+      out.push({ id: s.id, name: s.filename, stage: "error", percent: null, error: s.error });
+    }
+  }
+  return out;
 }
 
 export async function startVideoUpload(input: {
@@ -190,6 +254,7 @@ export async function startVideoUpload(input: {
       : Math.max(1, Math.ceil(input.size / input.chunkBytes)),
     received: new Set(),
     lengths: new Map(),
+    progress: 0,
     dir,
     src,
     state: "receiving",
@@ -268,12 +333,9 @@ export async function abortVideoUpload(s: Session): Promise<void> {
 }
 
 /** How many videos for this listing are still uploading or being processed. */
-export function pendingVideosFor(listingId: string): number {
-  let n = 0;
-  for (const s of sessions.values()) {
-    if ((s.state === "receiving" || s.state === "processing") && listingIdFrom(s.prefix) === listingId) n++;
-  }
-  return n;
+export async function pendingVideosFor(listingId: string): Promise<number> {
+  const activity = await videoActivityFor(listingId);
+  return activity.filter((a) => a.stage !== "error").length;
 }
 
 /** Queue the clip for compression. Returns immediately; poll for the result. */
@@ -287,6 +349,7 @@ export function finishVideoUpload(s: Session) {
 
 async function processSession(s: Session) {
   const started = Date.now();
+  s.running = true;
   try {
     const { codec } = await probe(s.src);
     if (!codec) {
@@ -295,7 +358,12 @@ async function processSession(s: Session) {
 
     const prepared = await prepareVideoFile(s.src, s.filename, s.dir, {
       timeoutMs: processTimeoutMs(s.size),
+      onProgress: (f) => {
+        s.progress = f;
+        s.touched = Date.now();
+      },
     });
+    s.progress = 1;
     /*
      * Conversion failed. For a small clip the original is still worth keeping,
      * but a big one (a multi-GB 4K or HDR file) would be too heavy to stream
@@ -364,6 +432,7 @@ async function processSession(s: Session) {
     s.state = "error";
   } finally {
     s.touched = Date.now();
+    s.endedAt = Date.now();
     // The stored copy is what matters now; drop the scratch files.
     await rm(s.dir, { recursive: true, force: true }).catch(() => {});
   }

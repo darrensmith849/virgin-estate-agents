@@ -6,7 +6,6 @@ import { Star, Trash2, UploadCloud, GripVertical, Loader2 } from "lucide-react";
 
 import {
   addListingImages,
-  addListingVideos,
   deleteListingImage,
   deleteListingVideo,
   reorderListingImages,
@@ -15,11 +14,41 @@ import {
 import { cn } from "@/lib/utils";
 import { mediaSrc } from "@/lib/media";
 import { shrinkImages } from "@/lib/client-image";
-import { sendVideo, waitForVideo, type UploadedVideo } from "@/lib/client-video-upload";
+import { sendVideo } from "@/lib/client-video-upload";
 import { compressAndUpload } from "@/lib/client-video-compress";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
+type VideoActivity = {
+  id: string;
+  name: string;
+  stage: "uploading" | "processing" | "error";
+  percent: number | null;
+  interrupted?: boolean;
+  error?: string;
+};
+
+/** A thin bar; with no figure it shows a gentle moving stripe instead. */
+function ProgressBar({ value, className }: { value: number | null; className?: string }) {
+  return (
+    <div
+      className={cn("h-1.5 w-full overflow-hidden rounded-full bg-line", className)}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value ?? undefined}
+    >
+      {value === null ? (
+        <div className="h-full w-1/3 animate-pulse rounded-full bg-brand/60" />
+      ) : (
+        <div
+          className="h-full rounded-full bg-brand transition-[width] duration-500 ease-out"
+          style={{ width: `${Math.max(2, Math.min(100, value))}%` }}
+        />
+      )}
+    </div>
+  );
+}
 
 export function ImageUploader({
   listingId,
@@ -38,16 +67,25 @@ export function ImageUploader({
   const [videos, setVideos] = useState<Vid[]>(initialVideos);
   const [uploading, setUploading] = useState(false);
   /** What the button says while working — compressing, then uploading. */
-  const [progress, setProgress] = useState<string | null>(null);
+  const [progress, setProgressText] = useState<string | null>(null);
+  /** 0–100 for the progress bar, or null when there's no figure. */
+  const [percent, setPercent] = useState<number | null>(null);
+  /** Update the label and, when the label carries a percentage, the bar. */
+  const setProgress = (text: string | null, pct?: number | null) => {
+    setProgressText(text);
+    const fromText = text ? /(\d+)%/.exec(text)?.[1] : undefined;
+    setPercent(pct !== undefined ? pct : fromText !== undefined ? Number(fromText) : null);
+  };
   const [error, setError] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(listingId ?? null);
   const [, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
 
-  /** Videos uploaded and now being finished on the server. */
-  const [processing, setProcessing] = useState<{ id: string; name: string }[]>([]);
-  /** Videos finishing on the server that this page didn't start (admin came back). */
-  const [serverPending, setServerPending] = useState(0);
+  /** Videos the server is still receiving or finishing for this listing —
+   *  from this page or any other — with real progress. */
+  const [activity, setActivity] = useState<VideoActivity[]>([]);
+  /** Bumped to start checking with the server again (e.g. after an upload). */
+  const [pollKey, setPollKey] = useState(0);
   /** A file is being dragged over the box. */
   const [dragActive, setDragActive] = useState(false);
 
@@ -65,26 +103,34 @@ export function ImageUploader({
   }, [uploading]);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
-  /* Pick up videos that were still being processed when the admin left the
-     page: ask once on load, then keep checking while any are pending. */
+  /* Keep the grid in step with the server: videos it has finished get added,
+     and anything still arriving or being finished shows as a tile with its
+     progress. Checks on load, and every few seconds while anything is live. */
   useEffect(() => {
     if (!currentId) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let quietChecks = 0;
     const check = async () => {
       try {
         const res = await fetch(`/admin/api/upload/video?listing=${currentId}`, { cache: "no-store" });
         if (!res.ok || stopped) return;
-        const data = (await res.json()) as { pending: number; videos: Vid[] };
+        const data = (await res.json()) as { activity: VideoActivity[]; videos: Vid[] };
         setVideos((prev) => {
           const known = new Set(prev.map((v) => v.id));
           const added = data.videos.filter((v) => !known.has(v.id));
           return added.length ? [...prev, ...added] : prev;
         });
-        setServerPending(data.pending);
-        if (data.pending > 0) timer = setTimeout(check, 5000);
+        setActivity(data.activity);
+        const failures = data.activity.filter((a) => a.stage === "error" && a.error);
+        if (failures.length) setError(failures.map((a) => a.error).join(" "));
+        const live = data.activity.some((a) => a.stage !== "error");
+        // Right after an upload the server may take a moment to list it, so
+        // give it a few checks before going quiet.
+        quietChecks = live ? 0 : quietChecks + 1;
+        if (live || (pollKey > 0 && quietChecks < 3)) timer = setTimeout(check, 3000);
       } catch {
-        // Offline for a moment: the next page load will catch up.
+        if (!stopped) timer = setTimeout(check, 5000);
       }
     };
     check();
@@ -92,20 +138,7 @@ export function ImageUploader({
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [currentId]);
-
-  /** Add a finished video to the grid (once), attaching it if the server didn't. */
-  async function addFinishedVideo(listing: string, done: UploadedVideo) {
-    let video = done.video;
-    if (!video) {
-      const [added] = await addListingVideos(listing, [{ ...done, title: done.alt }]);
-      if (added) video = { id: added.id, url: added.url, title: added.title };
-    }
-    if (video) {
-      const v = video;
-      setVideos((prev) => (prev.some((x) => x.id === v.id) ? prev : [...prev, v]));
-    }
-  }
+  }, [currentId, pollKey]);
 
   /*
    * Keep each request well under the proxy's 110MB body limit. Compressed
@@ -283,13 +316,8 @@ export function ImageUploader({
                 if (p.phase === "uploading") setProgress(`Uploading ${label}… ${p.percent}%`);
               });
             }
-            setProcessing((prev) => [...prev, { id: uploadId, name: original.name }]);
-            waitForVideo(uploadId)
-              .then((done) => addFinishedVideo(listing, done))
-              .catch((e) =>
-                setError(e instanceof Error ? e.message : `"${original.name}" failed to process.`),
-              )
-              .finally(() => setProcessing((prev) => prev.filter((p) => p.id !== uploadId)));
+            // The server finishes and attaches it; the tiles below follow it.
+            setPollKey((k) => k + 1);
           } catch (e) {
             problems.push(e instanceof Error ? e.message : `"${original.name}" failed to upload.`);
           }
@@ -364,7 +392,8 @@ export function ImageUploader({
 
   /** Only files dragged in from outside count — not photos being reordered. */
   const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
-  const pendingCount = processing.length + Math.max(0, serverPending - processing.length);
+  const liveActivity = activity.filter((a) => a.stage !== "error");
+  const pendingCount = liveActivity.length;
 
   return (
     <div
@@ -428,9 +457,16 @@ export function ImageUploader({
         </p>
       )}
       {uploading && (
-        <p className="mt-3 text-xs text-muted">
-          Keep this page open until the upload finishes.
-        </p>
+        <div className="mt-4 rounded-lg border border-line bg-paper px-4 py-3">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="text-ink-soft">{progress ?? "Working…"}</span>
+            {percent !== null && <span className="tabular-nums text-muted">{percent}%</span>}
+          </div>
+          <ProgressBar value={percent} className="mt-2" />
+          <p className="mt-2 text-xs text-muted">
+            Keep this page open until the upload finishes — the server does the rest.
+          </p>
+        </div>
       )}
       {!uploading && pendingCount > 0 && (
         <p className="mt-3 text-xs text-muted" role="status">
@@ -532,16 +568,28 @@ export function ImageUploader({
           </div>
         ))}
 
-        {Array.from({ length: pendingCount }, (_, i) => (
+        {liveActivity.map((a) => (
           <div
-            key={`pending-${i}`}
-            className="relative flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-paper-2 px-3 text-center text-xs text-muted"
+            key={a.id}
+            className="relative flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line bg-paper-2 px-4 text-center text-xs text-muted"
           >
-            <Loader2 size={18} className="animate-spin" />
-            {processing[i]?.name ? (
-              <span className="line-clamp-2">Finishing “{processing[i].name}”</span>
+            {!a.interrupted && <Loader2 size={18} className="animate-spin" />}
+            <span className="line-clamp-2 text-ink-soft">{a.name}</span>
+            {a.interrupted ? (
+              <span className="text-amber">
+                Upload stopped at {a.percent ?? 0}% — was the page closed? Please add it again.
+              </span>
             ) : (
-              "Finishing video"
+              <>
+                <span>
+                  {a.stage === "uploading"
+                    ? `Uploading${a.percent !== null ? ` ${a.percent}%` : "…"}`
+                    : a.percent === null
+                      ? "Waiting to be processed…"
+                      : `Processing ${a.percent}%`}
+                </span>
+                <ProgressBar value={a.percent} />
+              </>
             )}
           </div>
         ))}

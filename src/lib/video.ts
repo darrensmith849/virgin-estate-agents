@@ -1,5 +1,5 @@
 import "server-only";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,10 +12,44 @@ const run = promisify(execFile);
  * core busy for many minutes, and the production server hosts other sites that
  * shouldn't slow down while it does.
  */
-function ffmpeg(args: string[], opts: { timeout: number; maxBuffer: number }) {
-  return process.platform === "linux"
-    ? run("nice", ["-n", "15", "ffmpeg", ...args], opts)
-    : run("ffmpeg", args, opts);
+function ffmpeg(
+  args: string[],
+  opts: { timeout: number; maxBuffer: number; duration?: number | null; onProgress?: (f: number) => void },
+): Promise<void> {
+  const { duration, onProgress, timeout } = opts;
+  // Machine-readable progress on stdout: "out_time_us=…" lines as it works.
+  const fullArgs = onProgress && duration ? ["-progress", "pipe:1", "-nostats", ...args] : args;
+  const [cmd, cmdArgs] =
+    process.platform === "linux" ? ["nice", ["-n", "15", "ffmpeg", ...fullArgs]] : ["ffmpeg", fullArgs];
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, cmdArgs, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
+    let pending = "";
+    child.stdout.on("data", (buf: Buffer) => {
+      if (!onProgress || !duration) return;
+      pending += buf.toString();
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        const m = /^out_time_us=(\d+)/.exec(line);
+        if (m) onProgress(Math.min(1, Number(m[1]) / 1e6 / duration));
+      }
+    });
+    child.stderr.on("data", (buf: Buffer) => {
+      stderr = (stderr + buf.toString()).slice(-4000);
+    });
+    const timer = setTimeout(() => child.kill("SIGKILL"), timeout);
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg ${signal ? `killed (${signal})` : `exited ${code}`}: ${stderr.slice(-600)}`));
+    });
+  });
 }
 
 /*
@@ -174,9 +208,10 @@ export async function prepareVideoFile(
   src: string,
   filename: string,
   workDir: string,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; onProgress?: (fraction: number) => void } = {},
 ): Promise<PreparedVideoFile> {
   const timeout = opts.timeoutMs ?? FFMPEG_TIMEOUT_MS;
+  const onProgress = opts.onProgress;
   const srcBytes = (await stat(src)).size;
   const original: PreparedVideoFile = {
     file: src,
@@ -191,7 +226,7 @@ export async function prepareVideoFile(
     const out = path.join(workDir, "out.mp4");
     const posterFile = path.join(workDir, "poster.webp");
 
-    const { width, height, codec, pixFmt, bitRate } = await probe(src);
+    const { width, height, codec, pixFmt, bitRate, duration } = await probe(src);
     const longEdge = Math.max(width ?? 0, height ?? 0);
     /*
      * Re-encode when the clip is oversized, too wide, or in a codec that can't
@@ -215,18 +250,18 @@ export async function prepareVideoFile(
     let transcoded = needsReencode;
 
     if (needsReencode) {
-      await ffmpeg(transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
+      await ffmpeg(transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24, duration, onProgress });
     } else {
       try {
         // No re-encode: copy the streams and just relocate the metadata.
         await ffmpeg(
           ["-y", "-i", src, "-c", "copy", "-movflags", "+faststart", out],
-          { timeout, maxBuffer: 1 << 24 },
+          { timeout, maxBuffer: 1 << 24, duration, onProgress },
         );
       } catch {
         // H.264 picture but an audio track MP4 can't carry (PCM from some
         // cameras): copying fails, re-encoding doesn't.
-        await ffmpeg(transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
+        await ffmpeg(transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24, duration, onProgress });
         transcoded = true;
       }
     }

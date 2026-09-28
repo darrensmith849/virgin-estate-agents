@@ -14,7 +14,7 @@ import {
   finishVideoUpload,
   getVideoUpload,
   hasRoomFor,
-  pendingVideosFor,
+  videoActivityFor,
   sealStreamedUpload,
   startVideoUpload,
   writeVideoChunk,
@@ -166,7 +166,12 @@ export async function GET(req: Request) {
       orderBy: [asc(listingVideos.sortOrder)],
       columns: { id: true, url: true, title: true },
     });
-    return NextResponse.json({ pending: pendingVideosFor(listingId), videos });
+    const activity = await videoActivityFor(listingId);
+    return NextResponse.json({
+      pending: activity.filter((a) => a.stage !== "error").length,
+      activity,
+      videos,
+    });
   }
 
   const session = getVideoUpload(params.get("id") ?? "");
@@ -175,5 +180,6 @@ export async function GET(req: Request) {
     state: session.state,
     file: session.result,
     error: session.error,
+    progress: session.progress,
   });
 }
