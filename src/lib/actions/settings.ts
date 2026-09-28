@@ -34,6 +34,15 @@ function collectList(formData: FormData, field: string): string[] | null {
   return lines.length ? lines : null;
 }
 
+/** Standard specs left unticked; null when none, so an untouched save stores
+ *  exactly what was there before. */
+function hiddenSpecKeys(formData: FormData): string[] | null {
+  const hidden = Object.keys(DEFAULT_SPEC_LABELS).filter(
+    (key) => formData.get(`specShown_${key}`) == null,
+  );
+  return hidden.length ? hidden : null;
+}
+
 export type SettingsFormState =
   | { ok?: boolean; error?: string; fieldErrors?: Record<string, string[]> }
   | undefined;
@@ -66,9 +75,7 @@ export async function updateSettings(
     // Only when the ticks were on the submitted form — a form without them
     // (e.g. a Settings tab left open from before this update) changes nothing.
     hiddenSpecs: formData.has("specShownPresent")
-      ? Object.keys(DEFAULT_SPEC_LABELS).filter(
-          (key) => formData.get(`specShown_${key}`) == null,
-        )
+      ? hiddenSpecKeys(formData)
       : undefined,
   });
   if (!parsed.success) {
