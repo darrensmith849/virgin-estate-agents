@@ -16,6 +16,7 @@ import { mediaSrc } from "@/lib/media";
 import { shrinkImages } from "@/lib/client-image";
 import { sendVideo } from "@/lib/client-video-upload";
 import { compressAndUpload } from "@/lib/client-video-compress";
+import { isZip, unzipMedia } from "@/lib/client-unzip";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
@@ -86,6 +87,8 @@ export function ImageUploader({
   const [activity, setActivity] = useState<VideoActivity[]>([]);
   /** Bumped to start checking with the server again (e.g. after an upload). */
   const [pollKey, setPollKey] = useState(0);
+  /** Server-side failures already shown, so each is reported only once. */
+  const reportedFailures = useRef(new Set<string>());
   /** A file is being dragged over the box. */
   const [dragActive, setDragActive] = useState(false);
 
@@ -122,8 +125,14 @@ export function ImageUploader({
           return added.length ? [...prev, ...added] : prev;
         });
         setActivity(data.activity);
-        const failures = data.activity.filter((a) => a.stage === "error" && a.error);
-        if (failures.length) setError(failures.map((a) => a.error).join(" "));
+        // Report each failure once, not on every check.
+        const failures = data.activity.filter(
+          (a) => a.stage === "error" && a.error && !reportedFailures.current.has(a.id),
+        );
+        if (failures.length) {
+          failures.forEach((a) => reportedFailures.current.add(a.id));
+          setError(failures.map((a) => a.error).join(" "));
+        }
         const live = data.activity.some((a) => a.stage !== "error");
         // Right after an upload the server may take a moment to list it, so
         // give it a few checks before going quiet.
@@ -244,15 +253,47 @@ export function ImageUploader({
   // group is uploaded separately (the endpoint validates one type per request).
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const all = Array.from(files);
+    let all = Array.from(files);
+    let zipNote: string | null = null;
+
+    // Unpack any .zip first: its photos and videos join the rest.
+    const zips = all.filter(isZip);
+    if (zips.length) {
+      setUploading(true);
+      const skipped: string[] = [];
+      try {
+        for (const zip of zips) {
+          setProgress(`Unzipping ${zip.name}…`, 0);
+          const out = await unzipMedia(zip, (f) =>
+            setProgress(`Unzipping ${zip.name}… ${Math.round(f * 100)}%`),
+          );
+          all = [...all, ...out.files];
+          skipped.push(...out.skipped);
+        }
+      } catch {
+        setError("That zip file couldn't be opened. Try unzipping it and adding the files instead.");
+      } finally {
+        setUploading(false);
+        setProgress(null);
+      }
+      all = all.filter((f) => !isZip(f));
+      if (skipped.length) {
+        zipNote =
+          skipped.length === 1
+            ? `Skipped 1 file in the zip that isn't a photo or video (${skipped[0]}).`
+            : `Skipped ${skipped.length} files in the zip that aren't photos or videos.`;
+      }
+    }
+
     const imageFiles = all.filter((f) => f.type.startsWith("image/"));
     const videoFiles = all.filter((f) => f.type.startsWith("video/"));
     if (imageFiles.length === 0 && videoFiles.length === 0) {
-      setError("Please choose image or video files.");
+      setError(zips.length ? "No photos or videos were found in that zip." : "Please choose image or video files.");
       return;
     }
 
     setError(null);
+    if (zipNote) setError(zipNote);
     setUploading(true);
     try {
       // Ensure a listing exists to attach to (creates a draft on the new page).
@@ -433,7 +474,7 @@ export function ImageUploader({
           <p className="mt-1 text-sm text-muted">
             The first photo is the cover shown on the site · drag to reorder, or
             star a photo to move it to the front. Videos appear on the listing page.
-            Drag files straight in from your computer, or use the button.
+            Drag files straight in from your computer (a .zip works too), or use the button.
           </p>
         </div>
         <button
@@ -483,7 +524,7 @@ export function ImageUploader({
           className="mt-5 flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-line px-6 py-10 text-center text-sm text-muted transition-colors hover:border-brand/40 hover:bg-paper-2"
         >
           <UploadCloud size={22} className="text-muted" />
-          Drag photos and videos here, or click to choose them.
+          Drag photos, videos or a .zip here, or click to choose them.
         </button>
       ) : (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -600,7 +641,7 @@ export function ImageUploader({
       <input
         ref={mediaInputRef}
         type="file"
-        accept="image/*,video/*"
+        accept="image/*,video/*,.zip,application/zip"
         multiple
         hidden
         onChange={(e) => handleFiles(e.target.files)}
