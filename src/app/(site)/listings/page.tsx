@@ -8,7 +8,7 @@ import { ListingsFilters } from "@/components/listings/listings-filters";
 import { ListingsMap } from "@/components/listings/listings-map";
 import { listPropertyTypesInUse, listPublicListings } from "@/lib/data/listings";
 import { getAgencySettings } from "@/lib/data/settings";
-import { resolveVocabulary } from "@/lib/vocabulary";
+import { PROPERTY_CATEGORIES, propertyCategory, resolveVocabulary } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -110,37 +110,69 @@ export default async function ListingsPage({
               );
             }
 
-            const groups = (["sale", "rent"] as const)
-              .map((kind) => ({
-                kind,
-                label: vocabulary.kindLabels[kind],
-                rows: items.filter((l) => l.kind === kind),
-              }))
+            // For sale first, then to rent; within each, Residential,
+            // Commercial, then Land. The database returns them in this order
+            // already, so a category never splits across pages.
+            const count = (n: number) => `${n} ${n === 1 ? "property" : "properties"}`;
+            const kindGroups = (["sale", "rent"] as const)
+              .map((kind) => {
+                const rows = items.filter((l) => l.kind === kind);
+                return {
+                  kind,
+                  label: vocabulary.kindLabels[kind],
+                  rows,
+                  categories: PROPERTY_CATEGORIES.map((c) => ({
+                    ...c,
+                    rows: rows.filter((l) => propertyCategory(l.propertyType) === c.key),
+                  })).filter((c) => c.rows.length > 0),
+                };
+              })
               .filter((g) => g.rows.length > 0);
+            const bothKinds = kindGroups.length > 1;
 
             let rendered = 0;
+            const grid = (rows: typeof items) => (
+              <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+                {rows.map((listing) => (
+                  <ListingCard key={listing.id} listing={listing} priority={rendered++ < 3} />
+                ))}
+              </div>
+            );
+
             return (
-              <div className="space-y-12">
-                {groups.map((group) => (
+              <div className="space-y-14">
+                {kindGroups.map((group) => (
                   <section key={group.kind}>
-                    {/* Only worth a heading when both kinds are on the page. */}
-                    {groups.length > 1 && (
-                      <h2 className="mb-5 flex items-baseline gap-3 text-xl">
+                    {/* The sale / rent heading is only worth showing when both
+                        are on the page. */}
+                    {bothKinds && (
+                      <h2 className="mb-6 flex items-baseline gap-3 text-2xl">
                         {group.label}
                         <span className="text-sm font-normal text-muted">
-                          {group.rows.length}{" "}
-                          {group.rows.length === 1 ? "property" : "properties"}
+                          {count(group.rows.length)}
                         </span>
                       </h2>
                     )}
-                    <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-                      {group.rows.map((listing) => (
-                        <ListingCard
-                          key={listing.id}
-                          listing={listing}
-                          priority={rendered++ < 3}
-                        />
-                      ))}
+                    <div className="space-y-12">
+                      {group.categories.map((cat) => {
+                        const Heading = bothKinds ? "h3" : "h2";
+                        return (
+                          <div key={cat.key}>
+                            <Heading
+                              className={cn(
+                                "mb-5 flex items-baseline gap-3",
+                                bothKinds ? "text-lg" : "text-xl",
+                              )}
+                            >
+                              {cat.label}
+                              <span className="text-sm font-normal text-muted">
+                                {count(cat.rows.length)}
+                              </span>
+                            </Heading>
+                            {grid(cat.rows)}
+                          </div>
+                        );
+                      })}
                     </div>
                   </section>
                 ))}

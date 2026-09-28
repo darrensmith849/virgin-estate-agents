@@ -36,6 +36,16 @@ export type PublicListingFilters = {
 
 const PUBLIC_STATUSES = ["for_sale", "under_offer", "sold"] as const;
 
+/**
+ * Residential, then commercial, then land — the same rule as
+ * propertyCategory() in lib/vocabulary.ts, so a category never splits across
+ * pages. \y is a word boundary in Postgres regexes.
+ */
+const CATEGORY_ORDER_SQL = sql`CASE
+  WHEN ${listings.propertyType} ~* '\\y(land|stand|plot|erf|farm|smallholding|acreage)s?\\y' THEN 3
+  WHEN ${listings.propertyType} ~* '\\y(commercial|office|retail|industrial|warehouse|shop|factory|business|hotel|lodge)s?\\y' THEN 2
+  ELSE 1 END`;
+
 /** Listings in the recycle bin are hidden from every read except the bin's. */
 const notDeleted = isNull(listings.deletedAt);
 
@@ -85,7 +95,7 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
       ? [asc(listings.price)]
       : filters.sort === "price_desc"
         ? [desc(listings.price)]
-        : [asc(listings.kind), desc(listings.publishedAt), desc(listings.createdAt)];
+        : [asc(listings.kind), asc(CATEGORY_ORDER_SQL), desc(listings.publishedAt), desc(listings.createdAt)];
 
   return safeRead(
     async () => {

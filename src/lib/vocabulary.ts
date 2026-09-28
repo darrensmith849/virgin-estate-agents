@@ -110,3 +110,33 @@ export function formatPropertyType(value: string | null | undefined): string {
 export function samePropertyType(a: string, b: string): boolean {
   return formatPropertyType(a).toLowerCase() === formatPropertyType(b).toLowerCase();
 }
+
+/* ------------------------------------------------------------------ */
+/*  Broad categories for the public listings page                      */
+/* ------------------------------------------------------------------ */
+
+export type PropertyCategory = "residential" | "commercial" | "land";
+
+export const PROPERTY_CATEGORIES: { key: PropertyCategory; label: string }[] = [
+  { key: "residential", label: "Residential" },
+  { key: "commercial", label: "Commercial" },
+  { key: "land", label: "Land" },
+];
+
+/*
+ * The agency types property types freely ("Townhouse / Cluster Home",
+ * "Commercial / residential Land"), so the category is read from the words in
+ * it: anything naming land comes first, then anything commercial, and the rest
+ * is residential. Keep in step with CATEGORY_ORDER_SQL in lib/data/listings.ts,
+ * which sorts the same way in the database.
+ */
+const LAND_WORDS = /\b(land|stand|plot|erf|farm|smallholding|acreage)s?\b/i;
+const COMMERCIAL_WORDS =
+  /\b(commercial|office|retail|industrial|warehouse|shop|factory|business|hotel|lodge)s?\b/i;
+
+export function propertyCategory(type: string | null | undefined): PropertyCategory {
+  const label = formatPropertyType(type);
+  if (LAND_WORDS.test(label)) return "land";
+  if (COMMERCIAL_WORDS.test(label)) return "commercial";
+  return "residential";
+}
