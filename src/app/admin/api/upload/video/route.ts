@@ -11,6 +11,7 @@ import {
   canStartVideoUpload,
   finishVideoUpload,
   getVideoUpload,
+  hasRoomFor,
   startVideoUpload,
   writeVideoChunk,
 } from "@/lib/video-upload";
@@ -55,6 +56,12 @@ export async function POST(req: Request) {
       return fail("Bad chunk size.", 400);
     }
 
+    if (!(await hasRoomFor(size))) {
+      return fail(
+        `There isn't enough space on the server for "${filename}" right now. Please try again later, or upload a shorter version.`,
+        507,
+      );
+    }
     if (!canStartVideoUpload()) {
       return fail("Several videos are already uploading. Please wait for those to finish.", 429);
     }

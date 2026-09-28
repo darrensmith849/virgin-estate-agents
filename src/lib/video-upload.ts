@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, mkdtemp, open, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readdir, readFile, rm, stat, statfs } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -30,12 +30,23 @@ import { prepareVideoFile, probe } from "@/lib/video";
  * error and tries again.
  */
 
-/** Largest video accepted. Several minutes of 4K from a phone. */
-export const MAX_VIDEO_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+const GB = 1024 * 1024 * 1024;
+
+/** Largest video accepted: a long 4K recording, or a full-length tour film.
+ *  Whether there's room for it right now is checked separately (hasRoomFor). */
+export const MAX_VIDEO_UPLOAD_BYTES = 10 * GB;
+/** Above this, a video that failed to convert is refused rather than stored. */
+const ORIGINAL_FALLBACK_MAX_BYTES = 200 * 1024 * 1024;
+/** Disk always left free for the other sites on the same server. */
+const DISK_RESERVE_BYTES = 5 * GB;
 /** Largest single chunk the server takes; the browser sends 8MB. */
 export const MAX_CHUNK_BYTES = 16 * 1024 * 1024;
-/** Ceiling on the background compression of one clip. */
-const PROCESS_TIMEOUT_MS = 60 * 60 * 1000;
+/** Ceiling on the background compression of one clip: an hour, plus a minute
+ *  for every 50MB beyond that, up to four hours for the very largest. */
+function processTimeoutMs(bytes: number): number {
+  const minutes = Math.min(240, Math.max(60, bytes / (50 * 1024 * 1024)));
+  return Math.round(minutes * 60 * 1000); // execFile insists on a whole number
+}
 /** Abandoned uploads are swept after this long without activity. */
 const IDLE_EXPIRY_MS = 6 * 60 * 60 * 1000;
 /** Uploads in flight at once. Each can be 2GB of scratch space. */
@@ -86,6 +97,28 @@ export function canStartVideoUpload(): boolean {
     if (s.state === "receiving" || s.state === "processing") active++;
   }
   return active < MAX_ACTIVE_UPLOADS;
+}
+
+/**
+ * Whether the server has room to take a video of this size now. The scratch
+ * copy needs the original plus the compressed result, uploads already in
+ * flight have claimed theirs, and a margin always stays free — the disk is
+ * shared with other sites, and filling it would take them down too.
+ */
+export async function hasRoomFor(bytes: number): Promise<boolean> {
+  try {
+    await mkdir(SCRATCH_ROOT, { recursive: true });
+    const fs = await statfs(SCRATCH_ROOT);
+    const free = fs.bavail * fs.bsize;
+    let claimed = 0;
+    for (const s of sessions.values()) {
+      if (s.state === "receiving" || s.state === "processing") claimed += s.size * 2;
+    }
+    return free - claimed >= bytes * 2 + DISK_RESERVE_BYTES;
+  } catch {
+    // Can't tell (unusual platform): don't block the upload on it.
+    return true;
+  }
 }
 
 async function sweep() {
@@ -185,8 +218,19 @@ async function processSession(s: Session) {
     }
 
     const prepared = await prepareVideoFile(s.src, s.filename, s.dir, {
-      timeoutMs: PROCESS_TIMEOUT_MS,
+      timeoutMs: processTimeoutMs(s.size),
     });
+    /*
+     * Conversion failed. For a small clip the original is still worth keeping,
+     * but a big one (a multi-GB 4K or HDR file) would be too heavy to stream
+     * and often won't play in Chrome or on Android at all. Say so, rather than
+     * quietly attaching a file that breaks the listing page.
+     */
+    if (prepared.action === "original" && s.size > ORIGINAL_FALLBACK_MAX_BYTES) {
+      throw new Error(
+        `"${s.filename}" couldn't be converted for the web. Please try again, or upload a shorter clip.`,
+      );
+    }
     const storage = await getStorage();
     const key = storageKey(s.prefix, prepared.filename);
     const res = storage.putFile

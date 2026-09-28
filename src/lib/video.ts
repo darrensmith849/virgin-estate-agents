@@ -7,6 +7,17 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
+/**
+ * Run ffmpeg at low priority on Linux. Compressing a long 4K video keeps every
+ * core busy for many minutes, and the production server hosts other sites that
+ * shouldn't slow down while it does.
+ */
+function ffmpeg(args: string[], opts: { timeout: number; maxBuffer: number }) {
+  return process.platform === "linux"
+    ? run("nice", ["-n", "15", "ffmpeg", ...args], opts)
+    : run("ffmpeg", args, opts);
+}
+
 /*
  * Preparing an uploaded video for the web.
  *
@@ -149,19 +160,18 @@ export async function prepareVideoFile(
     let transcoded = needsReencode;
 
     if (needsReencode) {
-      await run("ffmpeg", transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
+      await ffmpeg(transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
     } else {
       try {
         // No re-encode: copy the streams and just relocate the metadata.
-        await run(
-          "ffmpeg",
+        await ffmpeg(
           ["-y", "-i", src, "-c", "copy", "-movflags", "+faststart", out],
           { timeout, maxBuffer: 1 << 24 },
         );
       } catch {
         // H.264 picture but an audio track MP4 can't carry (PCM from some
         // cameras): copying fails, re-encoding doesn't.
-        await run("ffmpeg", transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
+        await ffmpeg(transcodeArgs(src, out), { timeout, maxBuffer: 1 << 24 });
         transcoded = true;
       }
     }
