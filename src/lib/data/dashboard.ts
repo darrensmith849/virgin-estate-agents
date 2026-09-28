@@ -34,7 +34,15 @@ export async function getDashboardStats() {
         where: isNull(listings.deletedAt),
         orderBy: [desc(listings.updatedAt)],
         limit: 5,
-        columns: { id: true, title: true, slug: true, status: true, price: true },
+        columns: {
+          id: true,
+          title: true,
+          slug: true,
+          status: true,
+          price: true,
+          kind: true,
+          rentPeriod: true,
+        },
       }),
     ]);
 

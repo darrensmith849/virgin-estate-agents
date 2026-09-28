@@ -81,6 +81,13 @@ export const LISTING_STATUSES = [
   { value: "sold", label: "Sold", tone: "neutral" },
 ] as const;
 
+/** A status as it reads for this listing: a rental is "To Rent", then "Let". */
+export function statusLabel(status: string, kind?: string | null): string {
+  if (kind === "rent" && status === "for_sale") return "To Rent";
+  if (kind === "rent" && status === "sold") return "Let";
+  return LISTING_STATUSES.find((s) => s.value === status)?.label ?? "Draft";
+}
+
 /** Feature tags relevant to Zimbabwean property. */
 /* -------------------------------------------------------------------------- */
 /*  Editable vocabulary defaults                                               */

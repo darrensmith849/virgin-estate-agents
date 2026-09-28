@@ -15,7 +15,7 @@ import {
 
 import { setFeaturedOrder, setListingStatus, deleteListing } from "@/lib/actions/listings";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import { LISTING_BIN_DAYS, LISTING_STATUSES } from "@/lib/constants";
+import { LISTING_BIN_DAYS, LISTING_STATUSES, statusLabel } from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -87,7 +87,8 @@ function Card({
         if (!id || id === listing.id) return;
         h.move(id, listing.isFeatured ? "featured" : "rest", listing.id);
       }}
-      className="flex items-center gap-3 border-b border-line bg-card px-3 py-3 last:border-b-0"
+      // On phones the controls drop to a second line so the title stays readable.
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-card px-3 py-3 last:border-b-0 sm:flex-nowrap"
     >
       <span
         className="cursor-grab text-muted active:cursor-grabbing"
@@ -127,6 +128,7 @@ function Card({
         </p>
       </div>
 
+      <div className="flex w-full items-center justify-end gap-1 sm:w-auto sm:gap-3">
       {/* Keyboard alternative to dragging. */}
       <span className="hidden items-center gap-0.5 sm:flex">
         <button
@@ -155,7 +157,7 @@ function Card({
       >
         {LISTING_STATUSES.map((s) => (
           <option key={s.value} value={s.value}>
-            {s.label}
+            {statusLabel(s.value, listing.kind)}
           </option>
         ))}
       </select>
@@ -184,6 +186,7 @@ function Card({
         iconOnly
         message={`Move "${listing.title}" to the recycle bin? You can restore it within ${LISTING_BIN_DAYS} days.`}
       />
+      </div>
     </div>
   );
 }

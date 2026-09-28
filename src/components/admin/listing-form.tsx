@@ -12,7 +12,7 @@ import { PasteFeatures } from "@/components/admin/paste-features";
 import type { ParsedSpecs } from "@/lib/spec-parser";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
-import { HARARE_SUBURBS, LISTING_STATUSES, type SpecLabelKey } from "@/lib/constants";
+import { HARARE_SUBURBS, LISTING_STATUSES, statusLabel, type SpecLabelKey } from "@/lib/constants";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 
 type Props = {
@@ -386,7 +386,7 @@ export function ListingForm({
               >
                 {LISTING_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
-                    {s.label}
+                    {statusLabel(s.value, kind)}
                   </option>
                 ))}
               </Select>
@@ -887,7 +887,8 @@ export function ListingForm({
         </div>
       </Section>
 
-      <div className="flex justify-end gap-3">
+      {/* Stays in view while scrolling a long form. */}
+      <div className="sticky bottom-0 z-20 flex justify-end gap-3 border-t border-line bg-paper/95 py-3 backdrop-blur">
         <Button type="submit" disabled={pending}>
           <Save size={16} />
           {pending ? "Saving…" : submitLabel}

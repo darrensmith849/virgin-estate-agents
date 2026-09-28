@@ -20,9 +20,11 @@ import { StatusBadge } from "@/components/listings/status-badge";
 export function AdminBar({
   listingId,
   status,
+  kind,
 }: {
   listingId: string;
   status: string;
+  kind?: string;
 }) {
   const [pending, start] = useTransition();
   const isDraft = status === "draft";
@@ -33,7 +35,7 @@ export function AdminBar({
         <span className="hidden text-xs font-medium uppercase tracking-wide text-muted sm:inline">
           Admin
         </span>
-        <StatusBadge status={status} />
+        <StatusBadge status={status} kind={kind} />
 
         <Link
           href={`/admin/listings/${listingId}/edit`}

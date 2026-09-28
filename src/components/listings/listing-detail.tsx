@@ -157,7 +157,7 @@ export function ListingDetail({
       {/* Editing shortcuts for a signed-in admin. The preview route has its own
           banner, so don't stack a second bar on top of it. */}
       {isAdmin && !preview && (
-        <AdminBar listingId={listing.id} status={listing.status} />
+        <AdminBar listingId={listing.id} status={listing.status} kind={listing.kind} />
       )}
       {!preview && (
         <>
@@ -236,7 +236,9 @@ export function ListingDetail({
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl sm:text-4xl">{listing.title}</h1>
-                {listing.status !== "for_sale" && <StatusBadge status={listing.status} />}
+                {listing.status !== "for_sale" && (
+                  <StatusBadge status={listing.status} kind={listing.kind} />
+                )}
               </div>
               {(listing.suburb || listing.addressLine) && (
                 <p className="mt-2 flex items-center gap-1.5 text-muted">

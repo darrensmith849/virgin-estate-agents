@@ -194,7 +194,8 @@ export function SettingsForm({ settings }: { settings: AgencySettings }) {
         </div>
       </section>
 
-      <div className="flex justify-end">
+      {/* Stays in view while scrolling a long form. */}
+      <div className="sticky bottom-0 z-20 flex justify-end border-t border-line bg-paper/95 py-3 backdrop-blur">
         <Button type="submit" disabled={pending}>
           <Save size={16} />
           {pending ? "Saving…" : "Save settings"}

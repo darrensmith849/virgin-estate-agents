@@ -1,3 +1,4 @@
+import { statusLabel } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const MAP: Record<string, { label: string; className: string }> = {
@@ -9,21 +10,24 @@ const MAP: Record<string, { label: string; className: string }> = {
 
 export function StatusBadge({
   status,
+  kind,
   className,
 }: {
   status: string;
+  /** "rent" words it as To Rent / Let. */
+  kind?: string | null;
   className?: string;
 }) {
   const cfg = MAP[status] ?? MAP.draft;
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
         cfg.className,
         className,
       )}
     >
-      {cfg.label}
+      {statusLabel(status, kind)}
     </span>
   );
 }

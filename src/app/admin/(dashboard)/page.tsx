@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader
-        title={`Welcome back, ${user?.name?.split(" ")[0] ?? "there"}`}
+        title={greeting(user?.name)}
         description="Here's what's happening across your listings."
       >
         <Link
@@ -52,7 +52,7 @@ export default async function DashboardPage() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         {/* Recent enquiries */}
-        <section className="rounded-xl border border-line bg-card">
+        <section className="min-w-0 rounded-xl border border-line bg-card">
           <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <h2 className="text-base font-medium text-ink">Recent enquiries</h2>
             <Link
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Recent listings */}
-        <section className="rounded-xl border border-line bg-card">
+        <section className="min-w-0 rounded-xl border border-line bg-card">
           <div className="flex items-center justify-between border-b border-line px-5 py-4">
             <h2 className="text-base font-medium text-ink">Recent listings</h2>
             <Link
@@ -105,9 +105,11 @@ export default async function DashboardPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-ink">{l.title}</p>
-                    <p className="text-xs text-muted">{formatPrice(l.price)}</p>
+                    <p className="text-xs text-muted">
+                      {formatPrice(l.price, { kind: l.kind, period: l.rentPeriod })}
+                    </p>
                   </div>
-                  <StatusBadge status={l.status} />
+                  <StatusBadge status={l.status} kind={l.kind} />
                 </Link>
               </li>
             ))}
@@ -116,4 +118,12 @@ export default async function DashboardPage() {
       </div>
     </>
   );
+}
+
+/** "Welcome back, Boyd" — but not "Welcome back, Site" for a generic account. */
+function greeting(name: string | null | undefined): string {
+  const first = name?.trim().split(/\s+/)[0];
+  return first && !/^(site|admin|administrator|the)$/i.test(first)
+    ? `Welcome back, ${first}`
+    : "Welcome back";
 }
