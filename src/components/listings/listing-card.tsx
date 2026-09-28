@@ -50,7 +50,7 @@ export function ListingCard({
     >
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-paper-2 shadow-sm ring-1 ring-black/[0.04] transition-shadow duration-300 group-hover:shadow-xl">
         {cover ? (
-          <div className="ve-parallax absolute inset-0">
+          <div className="absolute inset-0">
             <Image
               src={mediaSrc(cover.url)}
               alt={cover.alt ?? listing.title}

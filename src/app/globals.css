@@ -405,34 +405,6 @@
 }
 
 /* ========================================================================= */
-/*  Scroll parallax for imagery (à la Halston / Aircenter)                   */
-/*  Images drift gently within their frame as the page scrolls, so they feel */
-/*  alive. Pure CSS scroll-driven animation, @supports-guarded: unsupported  */
-/*  browsers show a normal static image, and reduced-motion opts out.        */
-/*  Apply to a wrapper INSIDE an overflow-hidden frame (keeps hover effects   */
-/*  on the <img> itself conflict-free).                                       */
-/* ========================================================================= */
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .ve-parallax {
-      animation: ve-parallax linear both;
-      animation-timeline: view();
-      animation-range: cover;
-      will-change: transform;
-    }
-  }
-}
-
-@keyframes ve-parallax {
-  from {
-    transform: translateY(-6%) scale(1.16);
-  }
-  to {
-    transform: translateY(6%) scale(1.16);
-  }
-}
-
-/* ========================================================================= */
 /*  Refined palette tokens (warm, luxury, editorial)                         */
 /* ========================================================================= */
 :root {
