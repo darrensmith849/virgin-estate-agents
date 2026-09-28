@@ -9,7 +9,7 @@ import { db } from "@/db";
 import { listingVideos } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
 import { getStorage, storageKey } from "@/lib/storage";
-import { prepareVideoFile, probe } from "@/lib/video";
+import { posterKeyFor, prepareVideoFile, probe } from "@/lib/video";
 
 /*
  * Resumable video uploads.
@@ -74,7 +74,7 @@ export type VideoUploadResult = {
   alt: string | null;
   posterUrl?: string;
   /** Set when the clip was attached to its listing here on the server. */
-  video?: { id: string; url: string; title: string | null };
+  video?: { id: string; url: string; title: string | null; posterUrl: string | null };
 };
 
 /** "listings/<uuid>" → the listing id, or null for any other prefix. */
@@ -384,7 +384,7 @@ async function processSession(s: Session) {
     let posterUrl: string | undefined;
     if (prepared.poster) {
       const posterRes = await storage.put(
-        key.replace(/\.[^.]+$/, "") + "-poster.webp",
+        posterKeyFor(key, prepared.poster.ext),
         prepared.poster.data,
         prepared.poster.contentType,
       );
@@ -415,9 +415,15 @@ async function processSession(s: Session) {
           key: res.key,
           url: res.url,
           title: s.alt,
+          posterUrl: posterUrl ?? null,
           sortOrder: row?.c ?? 0,
         })
-        .returning({ id: listingVideos.id, url: listingVideos.url, title: listingVideos.title });
+        .returning({
+          id: listingVideos.id,
+          url: listingVideos.url,
+          title: listingVideos.title,
+          posterUrl: listingVideos.posterUrl,
+        });
       video = created;
     }
 

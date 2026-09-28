@@ -37,6 +37,7 @@ async function createVideoTable(): Promise<void> {
       "key" text NOT NULL,
       "url" text NOT NULL,
       "title" varchar(255),
+      "poster_url" text,
       "sort_order" integer DEFAULT 0 NOT NULL,
       "created_at" timestamp with time zone DEFAULT now() NOT NULL
     )

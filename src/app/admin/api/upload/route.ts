@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { listings } from "@/db/schema";
 import { getStorage, storageKey } from "@/lib/storage";
-import { prepareVideo } from "@/lib/video";
+import { posterKeyFor, prepareVideo } from "@/lib/video";
 import { altFor } from "@/lib/upload-alt";
 
 /*
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
         let posterUrl: string | undefined;
         if (prepared.poster) {
           const posterRes = await storage.put(
-            key.replace(/\.[^.]+$/, "") + "-poster.webp",
+            posterKeyFor(key, prepared.poster.ext),
             prepared.poster.data,
             prepared.poster.contentType,
           );

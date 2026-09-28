@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sq
 import { db } from "@/db";
 import { listings, listingImages, listingVideos } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
+import { backfillVideoPosters } from "@/lib/video-posters";
 import { formatPropertyType } from "@/lib/vocabulary";
 import { safeRead } from "./_safe";
 
@@ -11,6 +12,7 @@ import { safeRead } from "./_safe";
 async function listingVideosFor(listingId: string) {
   try {
     await ensureVideoTable();
+    backfillVideoPosters();
     return await db.query.listingVideos.findMany({
       where: eq(listingVideos.listingId, listingId),
       orderBy: [asc(listingVideos.sortOrder)],

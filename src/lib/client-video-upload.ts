@@ -19,7 +19,7 @@ export type UploadedVideo = {
   alt: string | null;
   posterUrl?: string;
   /** Set when the server has already attached it to the listing. */
-  video?: { id: string; url: string; title: string | null };
+  video?: { id: string; url: string; title: string | null; posterUrl: string | null };
 };
 
 export type VideoProgress =

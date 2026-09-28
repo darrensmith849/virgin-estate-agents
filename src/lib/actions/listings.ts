@@ -9,6 +9,7 @@ import { listingImages, listingVideos, listings } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { getStorage } from "@/lib/storage";
+import { posterKeyFor } from "@/lib/video";
 import { listingSchema } from "@/lib/validations";
 import { LISTING_BIN_DAYS } from "@/lib/constants";
 import { uniqueSlug } from "@/lib/utils";
@@ -456,14 +457,20 @@ export async function reorderListingImages(
 
 /* --------------------------------- Videos -------------------------------- */
 
+/** A video's file plus its preview picture (either format), for deleting. */
+function videoFileKeys(key: string): string[] {
+  return [key, posterKeyFor(key, "webp"), posterKeyFor(key, "jpg")];
+}
+
 /** Storage keys of a listing's videos, tolerant of the table not existing. */
 async function listingVideoKeys(listingId: string): Promise<{ key: string }[]> {
   try {
     await ensureVideoTable();
-    return await db.query.listingVideos.findMany({
+    const rows = await db.query.listingVideos.findMany({
       where: eq(listingVideos.listingId, listingId),
       columns: { key: true },
     });
+    return rows.flatMap((row) => videoFileKeys(row.key).map((key) => ({ key })));
   } catch {
     return [];
   }
@@ -471,7 +478,7 @@ async function listingVideoKeys(listingId: string): Promise<{ key: string }[]> {
 
 export async function addListingVideos(
   listingId: string,
-  videos: { key: string; url: string; title?: string | null }[],
+  videos: { key: string; url: string; title?: string | null; posterUrl?: string | null }[],
 ) {
   const user = await getCurrentUser();
   if (!user || videos.length === 0) return [];
@@ -493,6 +500,7 @@ export async function addListingVideos(
         key: video.key,
         url: video.url,
         title: video.title,
+        posterUrl: video.posterUrl ?? null,
         sortOrder: order++,
       })),
     )
@@ -514,7 +522,7 @@ export async function deleteListingVideo(videoId: string): Promise<void> {
   if (!video) return;
 
   const storage = await getStorage();
-  await storage.delete(video.key).catch(() => {});
+  await Promise.allSettled(videoFileKeys(video.key).map((key) => storage.delete(key)));
   await db.delete(listingVideos).where(eq(listingVideos.id, videoId));
 
   revalidatePath(`/admin/listings/${video.listingId}/edit`);

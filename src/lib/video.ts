@@ -87,8 +87,8 @@ export type PreparedVideo = {
   data: Buffer;
   filename: string;
   contentType: string;
-  /** JPEG/WebP still from the start of the clip, when one could be taken. */
-  poster: { data: Buffer; contentType: string } | null;
+  /** A WebP (or JPEG) still from a moment into the clip, when one could be taken. */
+  poster: VideoPoster | null;
   /** What was actually done, for logging. */
   action: "transcoded" | "remuxed" | "original";
 };
@@ -103,6 +103,56 @@ export type PreparedVideoFile = Omit<PreparedVideo, "data"> & {
   file: string;
   bytes: number;
 };
+
+export type VideoPoster = {
+  data: Buffer;
+  contentType: string;
+  /** File extension to store it under: "webp", or "jpg" as the fallback. */
+  ext: string;
+};
+
+/** Where a video's poster is stored: next to the clip, under a matching name. */
+export function posterKeyFor(videoKey: string, ext: string): string {
+  return `${videoKey.replace(/\.[^.]+$/, "")}-poster.${ext}`;
+}
+
+/**
+ * Take a still to show before a video plays.
+ *
+ * The very first frame is usually black — clips fade in, or open on a title
+ * card — so this looks a little way in (a tenth of the clip, at most five
+ * seconds) and lets ffmpeg's thumbnail filter pick the most typical of the
+ * next second or so of frames. WebP where the server's ffmpeg can write it,
+ * JPEG otherwise. Null if no still could be taken; never throws.
+ */
+export async function extractPoster(
+  src: string,
+  workDir: string,
+  duration?: number | null,
+): Promise<VideoPoster | null> {
+  let length = duration ?? null;
+  if (length === null) length = (await probe(src).catch(() => null))?.duration ?? null;
+  const at = length ? Math.min(5, Math.max(0, length * 0.1)) : 0.3;
+  const filter = `thumbnail=30,scale='min(1280,iw)':-2`;
+
+  for (const [ext, contentType, extra] of [
+    ["webp", "image/webp", []],
+    ["jpg", "image/jpeg", ["-q:v", "3"]],
+  ] as const) {
+    const out = path.join(workDir, `poster.${ext}`);
+    try {
+      await ffmpeg(
+        ["-y", "-ss", at.toFixed(2), "-i", src, "-an", "-vf", filter, "-frames:v", "1", ...extra, out],
+        { timeout: 60_000, maxBuffer: 1 << 24 },
+      );
+      const data = await readFile(out);
+      if (data.byteLength > 0) return { data, contentType, ext };
+    } catch {
+      // No WebP encoder in this ffmpeg, or an odd clip — try the next format.
+    }
+  }
+  return null;
+}
 
 export type ProbeResult = {
   width: number | null;
@@ -224,7 +274,6 @@ export async function prepareVideoFile(
 
   try {
     const out = path.join(workDir, "out.mp4");
-    const posterFile = path.join(workDir, "poster.webp");
 
     const { width, height, codec, pixFmt, bitRate, duration } = await probe(src);
     const longEdge = Math.max(width ?? 0, height ?? 0);
@@ -273,20 +322,8 @@ export async function prepareVideoFile(
     // the few extra bytes are worth it.
     const useProcessed = transcoded || outBytes <= srcBytes || (await isFragmented(src));
 
-    let poster: PreparedVideo["poster"] = null;
-    try {
-      await run(
-        "ffmpeg",
-        // Seek a fraction in rather than a full second: a short clip has
-        // no frame at 1s and the extraction would fail.
-        ["-y", "-ss", "00:00:00.3", "-i", src, "-frames:v", "1",
-         "-vf", `scale='min(1280,iw)':-2`, posterFile],
-        { timeout: 30_000, maxBuffer: 1 << 24 },
-      );
-      poster = { data: await readFile(posterFile), contentType: "image/webp" };
-    } catch {
-      // Clips shorter than a second, or an odd codec — not worth failing over.
-    }
+    // Taken from the file that will be stored, so it matches what plays.
+    const poster = await extractPoster(useProcessed ? out : src, workDir, duration);
 
     const base = filename.replace(/\.[^.]+$/, "") || "video";
     return useProcessed

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { Star, Trash2, UploadCloud, GripVertical, Loader2 } from "lucide-react";
+import { Star, Trash2, UploadCloud, GripVertical, Loader2, Play } from "lucide-react";
 
 import {
   addListingImages,
@@ -19,7 +19,7 @@ import { compressAndUpload } from "@/lib/client-video-compress";
 import { isZip, unzipMedia } from "@/lib/client-unzip";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
-type Vid = { id: string; url: string; title: string | null };
+type Vid = { id: string; url: string; title: string | null; posterUrl?: string | null };
 type VideoActivity = {
   id: string;
   name: string;
@@ -120,9 +120,16 @@ export function ImageUploader({
         if (!res.ok || stopped) return;
         const data = (await res.json()) as { activity: VideoActivity[]; videos: Vid[] };
         setVideos((prev) => {
+          const fresh = new Map(data.videos.map((v) => [v.id, v]));
           const known = new Set(prev.map((v) => v.id));
           const added = data.videos.filter((v) => !known.has(v.id));
-          return added.length ? [...prev, ...added] : prev;
+          // Pick up preview pictures that arrived after the tile was shown.
+          const gotPoster = prev.some((v) => !v.posterUrl && fresh.get(v.id)?.posterUrl);
+          if (!added.length && !gotPoster) return prev;
+          return [
+            ...prev.map((v) => (v.posterUrl ? v : { ...v, posterUrl: fresh.get(v.id)?.posterUrl ?? null })),
+            ...added,
+          ];
         });
         setActivity(data.activity);
         // Report each failure once, not on every check.
@@ -584,12 +591,31 @@ export function ImageUploader({
             key={video.id}
             className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-line bg-black"
           >
-            <video
-              src={video.url}
-              preload="metadata"
-              muted
-              className="h-full w-full object-cover"
-            />
+            {video.posterUrl ? (
+              <Image
+                src={mediaSrc(video.posterUrl)}
+                alt=""
+                fill
+                sizes="200px"
+                quality={50}
+                className="object-cover"
+              />
+            ) : (
+              // No picture yet: show a frame a second in (the very first is
+              // often black) until the server has made one.
+              <video
+                src={`${video.url}#t=1`}
+                preload="metadata"
+                muted
+                playsInline
+                className="h-full w-full object-cover"
+              />
+            )}
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white">
+                <Play size={18} className="translate-x-px" fill="currentColor" />
+              </span>
+            </span>
             <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[0.65rem] font-medium text-white">
               Video
             </span>

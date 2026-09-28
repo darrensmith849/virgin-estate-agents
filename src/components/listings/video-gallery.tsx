@@ -2,6 +2,8 @@ type ListingVideo = {
   id: string;
   url: string;
   title: string | null;
+  /** A still shown until it plays; without one, the first frame is shown. */
+  posterUrl?: string | null;
 };
 
 export function VideoGallery({ videos, title }: { videos: ListingVideo[]; title: string }) {
@@ -17,8 +19,9 @@ export function VideoGallery({ videos, title }: { videos: ListingVideo[]; title:
           <figure key={video.id} className="overflow-hidden rounded-xl bg-black">
             <video
               controls
-              preload="metadata"
-              className="aspect-video w-full"
+              preload={video.posterUrl ? "none" : "metadata"}
+              poster={video.posterUrl ?? undefined}
+              className="aspect-video w-full object-contain"
               aria-label={video.title ?? `${title} video ${index + 1}`}
             >
               <source src={video.url} />

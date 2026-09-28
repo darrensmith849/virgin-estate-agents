@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { listingVideos, listings } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
+import { backfillVideoPosters } from "@/lib/video-posters";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { altFor } from "@/lib/upload-alt";
 import {
@@ -161,10 +162,11 @@ export async function GET(req: Request) {
   if (listingId) {
     if (!/^[0-9a-f-]{36}$/i.test(listingId)) return fail("Bad listing id.", 400);
     await ensureVideoTable();
+    backfillVideoPosters();
     const videos = await db.query.listingVideos.findMany({
       where: eq(listingVideos.listingId, listingId),
       orderBy: [asc(listingVideos.sortOrder)],
-      columns: { id: true, url: true, title: true },
+      columns: { id: true, url: true, title: true, posterUrl: true },
     });
     const activity = await videoActivityFor(listingId);
     return NextResponse.json({

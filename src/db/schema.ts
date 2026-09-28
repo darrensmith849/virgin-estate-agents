@@ -170,6 +170,8 @@ export const listingVideos = pgTable(
     key: text("key").notNull(), // storage key (R2 object key / local path)
     url: text("url").notNull(), // public URL
     title: varchar("title", { length: 255 }),
+    /** A still from a moment into the clip, shown before it plays. */
+    posterUrl: text("poster_url"),
     sortOrder: integer("sort_order").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

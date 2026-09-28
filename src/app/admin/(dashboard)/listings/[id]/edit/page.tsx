@@ -118,6 +118,7 @@ export default async function EditListingPage({
             id: video.id,
             url: video.url,
             title: video.title,
+            posterUrl: video.posterUrl,
           }))}
         />
         <ListingForm

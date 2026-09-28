@@ -227,6 +227,7 @@ export function ListingDetail({
               id: video.id,
               url: video.url,
               title: video.title,
+              posterUrl: video.posterUrl,
             }))}
             title={listing.title}
           />
