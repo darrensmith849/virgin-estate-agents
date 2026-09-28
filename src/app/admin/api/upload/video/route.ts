@@ -9,11 +9,13 @@ import { altFor } from "@/lib/upload-alt";
 import {
   MAX_CHUNK_BYTES,
   MAX_VIDEO_UPLOAD_BYTES,
+  abortVideoUpload,
   canStartVideoUpload,
   finishVideoUpload,
   getVideoUpload,
   hasRoomFor,
   pendingVideosFor,
+  sealStreamedUpload,
   startVideoUpload,
   writeVideoChunk,
 } from "@/lib/video-upload";
@@ -85,6 +87,9 @@ export async function POST(req: Request) {
       alt: altFor(knownListing, filename),
       size,
       chunkBytes,
+      // Compressed in the browser as it uploads: `size` is an estimate and
+      // the real one arrives with "finish".
+      streaming: body.streaming === true,
     });
     return NextResponse.json({ id: session.id });
   }
@@ -93,12 +98,25 @@ export async function POST(req: Request) {
     const session = getVideoUpload(String(body.id ?? ""));
     if (!session) return fail("Upload expired. Please try again.", 404);
     if (session.state === "receiving") {
-      if (session.received.size !== session.totalChunks) {
+      if (session.streaming) {
+        const problem = await sealStreamedUpload(
+          session,
+          Number(body.size),
+          Number(body.totalChunks),
+        );
+        if (problem) return fail(problem, 409);
+      } else if (session.received.size !== session.totalChunks) {
         return fail("Some of the video is missing. Please try again.", 409);
       }
       finishVideoUpload(session);
     }
     return NextResponse.json({ state: session.state });
+  }
+
+  if (op === "abort") {
+    const session = getVideoUpload(String(body.id ?? ""));
+    if (session) await abortVideoUpload(session);
+    return NextResponse.json({ ok: true });
   }
 
   return fail("Unknown operation", 400);

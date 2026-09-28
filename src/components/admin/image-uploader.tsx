@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { mediaSrc } from "@/lib/media";
 import { shrinkImages } from "@/lib/client-image";
 import { sendVideo, waitForVideo, type UploadedVideo } from "@/lib/client-video-upload";
-import { compressVideoInBrowser } from "@/lib/client-video-compress";
+import { compressAndUpload } from "@/lib/client-video-compress";
 
 type Img = { id: string; url: string; alt: string | null; isCover: boolean };
 type Vid = { id: string; url: string; title: string | null };
@@ -268,18 +268,21 @@ export function ImageUploader({
             videoFiles.length > 1 ? `video ${index + 1} of ${videoFiles.length}` : "video";
           try {
             setProgress(`Preparing ${label}…`);
-            const smaller = await compressVideoInBrowser(original, (f) =>
-              setProgress(`Compressing ${label}… ${Math.round(f * 100)}%`),
-            );
-            const file = smaller ?? original;
-            if (smaller) {
-              console.log(
-                `[uploader] ${original.name}: ${(original.size / 1048576).toFixed(0)}MB -> ${(smaller.size / 1048576).toFixed(0)}MB before upload`,
+            // Compress and upload at the same time where the browser can;
+            // otherwise send the original as before.
+            let uploadId = await compressAndUpload(original, `listings/${listing}`, (p) => {
+              const pct = Math.round(p.converted * 100);
+              setProgress(
+                p.converted < 1
+                  ? `Compressing & uploading ${label}… ${pct}%`
+                  : `Uploading ${label}… ${p.sent} of ${p.produced}`,
               );
-            }
-            const uploadId = await sendVideo(file, `listings/${listing}`, (p) => {
-              if (p.phase === "uploading") setProgress(`Uploading ${label}… ${p.percent}%`);
             });
+            if (!uploadId) {
+              uploadId = await sendVideo(original, `listings/${listing}`, (p) => {
+                if (p.phase === "uploading") setProgress(`Uploading ${label}… ${p.percent}%`);
+              });
+            }
             setProcessing((prev) => [...prev, { id: uploadId, name: original.name }]);
             waitForVideo(uploadId)
               .then((done) => addFinishedVideo(listing, done))

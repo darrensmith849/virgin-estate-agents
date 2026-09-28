@@ -81,6 +81,90 @@ export async function uploadVideo(
 }
 
 /**
+ * An upload in progress on the server. Pieces are sent several at a time —
+ * one request at a time wastes most of a long-distance link waiting for each
+ * reply (Harare to the server is a long round trip), a few in parallel keep it
+ * full. The server writes each piece at its own offset, so the order they land
+ * in doesn't matter. `put` waits while the pipe is full, which also lets a
+ * producer (the in-browser compressor) run no further ahead than the network.
+ */
+export class ChunkedUpload {
+  readonly chunkBytes = CHUNK_BYTES;
+  private inFlight = new Set<Promise<void>>();
+  private failure: Error | null = null;
+  private constructor(readonly id: string) {}
+
+  static async start(meta: {
+    prefix: string;
+    filename: string;
+    type: string;
+    /** Exact size, when known up front. */
+    size?: number;
+    /** For a file still being produced: a guess, used for the space check. */
+    estimatedSize?: number;
+  }): Promise<ChunkedUpload> {
+    const res = await send(`${ENDPOINT}?op=start`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        prefix: meta.prefix,
+        filename: meta.filename,
+        type: meta.type,
+        size: meta.size ?? meta.estimatedSize,
+        streaming: meta.size === undefined,
+        chunkBytes: CHUNK_BYTES,
+      }),
+    });
+    const { id } = (await res.json()) as { id: string };
+    return new ChunkedUpload(id);
+  }
+
+  /** Queue piece `index`; resolves once there's room for another. */
+  async put(index: number, body: Blob, onSent?: () => void): Promise<void> {
+    if (this.failure) throw this.failure;
+    while (this.inFlight.size >= PARALLEL_CHUNKS) {
+      await Promise.race(this.inFlight);
+      if (this.failure) throw this.failure;
+    }
+    const task = withRetry(() =>
+      send(`${ENDPOINT}?id=${encodeURIComponent(this.id)}&index=${index}`, {
+        method: "PUT",
+        headers: { "content-type": "application/octet-stream" },
+        body,
+      }),
+    )
+      .then(() => onSent?.())
+      .catch((e: unknown) => {
+        this.failure ??= e instanceof Error ? e : new Error("Upload failed.");
+      })
+      .finally(() => this.inFlight.delete(task));
+    this.inFlight.add(task);
+  }
+
+  /** Wait for every piece, then hand the file to the server to finish. */
+  async finish(final?: { size: number; totalChunks: number }): Promise<void> {
+    await Promise.all(this.inFlight);
+    if (this.failure) throw this.failure;
+    await withRetry(() =>
+      send(`${ENDPOINT}?op=finish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: this.id, ...final }),
+      }),
+    );
+  }
+
+  /** Give up and let the server clear away what arrived. Best effort. */
+  async abort(): Promise<void> {
+    await fetch(`${ENDPOINT}?op=abort`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: this.id }),
+    }).catch(() => {});
+  }
+}
+
+/**
  * Upload a video's bytes and hand it to the server; returns the upload id as
  * soon as the last piece has landed. The server then finishes on its own —
  * the page doesn't need to stay open for that part.
@@ -90,56 +174,23 @@ export async function sendVideo(
   prefix: string,
   onProgress: (p: VideoProgress) => void,
 ): Promise<string> {
-  const start = await send(`${ENDPOINT}?op=start`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      prefix,
-      filename: file.name,
-      size: file.size,
-      type: file.type,
-      chunkBytes: CHUNK_BYTES,
-    }),
+  const upload = await ChunkedUpload.start({
+    prefix,
+    filename: file.name,
+    type: file.type,
+    size: file.size,
   });
-  const { id } = (await start.json()) as { id: string };
-
   const total = Math.max(1, Math.ceil(file.size / CHUNK_BYTES));
-  onProgress({ phase: "uploading", percent: 0 });
-
-  /*
-   * Several pieces in flight at once. One request at a time wastes most of a
-   * long-distance link waiting for each reply (Harare to the server is a long
-   * round trip); a few in parallel keep it full. The server writes each piece
-   * at its own offset, so the order they land in doesn't matter.
-   */
-  let next = 0;
   let done = 0;
-  const worker = async () => {
-    while (next < total) {
-      const index = next++;
-      const piece = file.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
-      await withRetry(() =>
-        send(`${ENDPOINT}?id=${encodeURIComponent(id)}&index=${index}`, {
-          method: "PUT",
-          headers: { "content-type": "application/octet-stream" },
-          body: piece,
-        }),
-      );
+  onProgress({ phase: "uploading", percent: 0 });
+  for (let index = 0; index < total; index++) {
+    await upload.put(index, file.slice(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES), () => {
       done++;
       onProgress({ phase: "uploading", percent: Math.round((done / total) * 100) });
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(PARALLEL_CHUNKS, total) }, worker));
-
-  await withRetry(() =>
-    send(`${ENDPOINT}?op=finish`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id }),
-    }),
-  );
-
-  return id;
+    });
+  }
+  await upload.finish();
+  return upload.id;
 }
 
 /** Wait for the server to finish processing an uploaded video. */

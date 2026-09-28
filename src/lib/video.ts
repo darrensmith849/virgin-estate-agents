@@ -1,6 +1,6 @@
 import "server-only";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -119,6 +119,22 @@ export async function probe(file: string): Promise<ProbeResult> {
   }
 }
 
+/** Whether an MP4 is fragmented (has movie-fragment boxes near the start). */
+async function isFragmented(file: string): Promise<boolean> {
+  try {
+    const fh = await open(file, "r");
+    try {
+      const head = Buffer.alloc(4 * 1024 * 1024);
+      const { bytesRead } = await fh.read(head, 0, head.length, 0);
+      return head.subarray(0, bytesRead).includes("moof");
+    } finally {
+      await fh.close();
+    }
+  } catch {
+    return false;
+  }
+}
+
 /* Codecs that can be dropped into an MP4 container without re-encoding. Copying
  * anything else fails outright — a WebM's VP8/Opus cannot be remuxed into MP4,
  * which is exactly how the first version of this broke. */
@@ -216,8 +232,11 @@ export async function prepareVideoFile(
     }
     const outBytes = (await stat(out)).size;
 
-    // A remux that somehow grew the file isn't worth keeping.
-    const useProcessed = transcoded || outBytes <= srcBytes;
+    // A remux that somehow grew the file isn't worth keeping — except when the
+    // source is a fragmented MP4 (what the browser streams up while it
+    // compresses): a plain MP4 plays and seeks more reliably everywhere, and
+    // the few extra bytes are worth it.
+    const useProcessed = transcoded || outBytes <= srcBytes || (await isFragmented(src));
 
     let poster: PreparedVideo["poster"] = null;
     try {

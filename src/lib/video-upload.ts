@@ -86,6 +86,11 @@ type Session = {
   chunkBytes: number;
   totalChunks: number;
   received: Set<number>;
+  /** Size of each piece that arrived, for checking a streamed upload at the end. */
+  lengths: Map<number, number>;
+  /** True while the browser is still producing the file (compress-as-you-go):
+   *  the exact size and piece count are only known when it finishes. */
+  streaming: boolean;
   dir: string;
   src: string;
   state: "receiving" | "processing" | "done" | "error";
@@ -165,6 +170,7 @@ export async function startVideoUpload(input: {
   alt: string | null;
   size: number;
   chunkBytes: number;
+  streaming?: boolean;
 }): Promise<Session> {
   await sweep();
   await mkdir(SCRATCH_ROOT, { recursive: true });
@@ -177,8 +183,13 @@ export async function startVideoUpload(input: {
   const session: Session = {
     id: crypto.randomUUID(),
     ...input,
-    totalChunks: Math.max(1, Math.ceil(input.size / input.chunkBytes)),
+    streaming: Boolean(input.streaming),
+    // For a streamed upload this is only an upper bound until it finishes.
+    totalChunks: input.streaming
+      ? Math.ceil(MAX_VIDEO_UPLOAD_BYTES / input.chunkBytes)
+      : Math.max(1, Math.ceil(input.size / input.chunkBytes)),
     received: new Set(),
+    lengths: new Map(),
     dir,
     src,
     state: "receiving",
@@ -197,10 +208,17 @@ export function getVideoUpload(id: string): Session | undefined {
  * makes a retried chunk harmless: it simply overwrites itself.
  */
 export async function writeVideoChunk(s: Session, index: number, data: Uint8Array) {
-  const expected =
-    index === s.totalChunks - 1 ? s.size - index * s.chunkBytes : s.chunkBytes;
-  if (data.byteLength !== expected) {
-    throw new Error(`Chunk ${index + 1} arrived incomplete. Please try again.`);
+  if (s.streaming) {
+    // Only the final piece may be short, and that's checked on finish.
+    if (data.byteLength === 0 || data.byteLength > s.chunkBytes) {
+      throw new Error(`Chunk ${index + 1} arrived incomplete. Please try again.`);
+    }
+  } else {
+    const expected =
+      index === s.totalChunks - 1 ? s.size - index * s.chunkBytes : s.chunkBytes;
+    if (data.byteLength !== expected) {
+      throw new Error(`Chunk ${index + 1} arrived incomplete. Please try again.`);
+    }
   }
   const fh = await open(s.src, "r+");
   try {
@@ -209,7 +227,44 @@ export async function writeVideoChunk(s: Session, index: number, data: Uint8Arra
     await fh.close();
   }
   s.received.add(index);
+  s.lengths.set(index, data.byteLength);
   s.touched = Date.now();
+}
+
+/**
+ * Close a streamed upload once the browser knows how big the file turned out:
+ * every piece must be there, all but the last full-sized, adding up exactly.
+ * Returns an error message, or null when the file is complete.
+ */
+export async function sealStreamedUpload(
+  s: Session,
+  size: number,
+  totalChunks: number,
+): Promise<string | null> {
+  if (!Number.isInteger(size) || size <= 0 || size > MAX_VIDEO_UPLOAD_BYTES) return "Bad file size.";
+  if (totalChunks !== Math.ceil(size / s.chunkBytes)) return "Bad piece count.";
+  for (let i = 0; i < totalChunks; i++) {
+    const expected = i === totalChunks - 1 ? size - i * s.chunkBytes : s.chunkBytes;
+    if (s.lengths.get(i) !== expected) return "Some of the video is missing. Please try again.";
+  }
+  if (s.received.size !== totalChunks) return "Unexpected extra pieces. Please try again.";
+  const fh = await open(s.src, "r+");
+  try {
+    await fh.truncate(size);
+  } finally {
+    await fh.close();
+  }
+  s.size = size;
+  s.totalChunks = totalChunks;
+  s.streaming = false;
+  return null;
+}
+
+/** Abandon an upload and clear away what arrived. */
+export async function abortVideoUpload(s: Session): Promise<void> {
+  if (s.state !== "receiving") return;
+  sessions.delete(s.id);
+  await rm(s.dir, { recursive: true, force: true }).catch(() => {});
 }
 
 /** How many videos for this listing are still uploading or being processed. */
