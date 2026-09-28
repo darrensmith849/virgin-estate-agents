@@ -1,11 +1,12 @@
 import { cn } from "@/lib/utils";
 
 /**
- * A bold "SOLD" / "UNDER OFFER" / "LET" stamp laid over a listing's photo, so a
- * property that's gone is obvious at a glance. Nothing is shown for a listing
- * that is still available.
+ * A bold status stamp laid over a listing's photo — the same status the admin
+ * sets on the listing: "FOR SALE" (or "TO RENT"), "UNDER OFFER", "SOLD" (or
+ * "LET"). Drafts aren't public, so they get none.
  */
 export function stampLabel(status: string, kind: string): string | null {
+  if (status === "for_sale") return kind === "rent" ? "To rent" : "For sale";
   if (status === "sold") return kind === "rent" ? "Let" : "Sold";
   if (status === "under_offer") return "Under offer";
   return null;
