@@ -13,9 +13,10 @@ export function stampLabel(
   kindLabels?: { sale: string; rent: string },
 ): string | null {
   if (status === "for_sale") {
-    return kind === "rent" ? (kindLabels?.rent ?? "To rent") : (kindLabels?.sale ?? "For sale");
+    return kind === "rent" ? (kindLabels?.rent ?? "To Rent") : (kindLabels?.sale ?? "For Sale");
   }
-  if (status === "sold") return kind === "rent" ? "Rented" : "Sold";
+  if (status === "sold") return "Sold";
+  if (status === "rented") return "Rented";
   if (status === "under_offer") return "Under offer";
   return null;
 }

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { listingImages, listingVideos, listings } from "@/db/schema";
@@ -106,7 +106,7 @@ async function afterStatusChange(id: string): Promise<void> {
   try {
     await db.execute(sql`
       UPDATE listings
-      SET sold_at = CASE WHEN status = 'sold' THEN coalesce(sold_at, now()) ELSE NULL END
+      SET sold_at = CASE WHEN status IN ('sold', 'rented') THEN coalesce(sold_at, now()) ELSE NULL END
       WHERE id = ${id}
     `);
   } catch (err) {
@@ -115,9 +115,10 @@ async function afterStatusChange(id: string): Promise<void> {
 }
 
 /** The tab a listing lives on once sold (Sold) or rented (Rented), if either. */
-function closedTab(listing: { status: string; kind: string }): string | null {
-  if (listing.status !== "sold") return null;
-  return listing.kind === "rent" ? "/admin/rented" : "/admin/sold";
+function closedTab(listing: { status: string }): string | null {
+  if (listing.status === "sold") return "/admin/sold";
+  if (listing.status === "rented") return "/admin/rented";
+  return null;
 }
 
 /** Slug base for a placeholder draft created before the form is filled in. */
@@ -280,25 +281,18 @@ export async function setFeaturedOrder(ids: string[]): Promise<void> {
   revalidatePath("/"); // the featured grid lives on the homepage
 }
 
-/**
- * Set a listing's status directly, for the dropdown on each admin card. With
- * `kind`, the listing's type changes too — marking a for-sale listing Rented
- * makes it a rental (quoted per month unless a period is already set).
- */
-export async function setListingStatus(id: string, status: string, kind?: string): Promise<void> {
+/** Set a listing's status directly, for the dropdown on each admin card. */
+export async function setListingStatus(id: string, status: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
 
-  const allowed = ["draft", "for_sale", "under_offer", "sold"] as const;
+  const allowed = ["draft", "for_sale", "under_offer", "sold", "rented"] as const;
   if (!allowed.includes(status as (typeof allowed)[number])) return;
-  const newKind = kind === "sale" || kind === "rent" ? kind : undefined;
 
   await db
     .update(listings)
     .set({
       status: status as (typeof allowed)[number],
-      ...(newKind ? { kind: newKind } : {}),
-      ...(newKind === "rent" ? { rentPeriod: sql`coalesce(${listings.rentPeriod}, 'month')` } : {}),
       // Publishing for the first time should stamp a publish date; going back
       // to draft clears it so the listing isn't ordered as though it were live.
       publishedAt: status === "draft" ? null : sql`coalesce(${listings.publishedAt}, now())`,
@@ -328,7 +322,7 @@ export async function relistListing(id: string): Promise<void> {
   await db
     .update(listings)
     .set({ status: "for_sale", updatedAt: new Date() })
-    .where(and(eq(listings.id, id), eq(listings.status, "sold")));
+    .where(and(eq(listings.id, id), inArray(listings.status, ["sold", "rented"])));
   await afterStatusChange(id);
   revalidateListingPages();
 }

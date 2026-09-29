@@ -92,8 +92,46 @@ export function isUuid(value: unknown): value is string {
 /** Build a wa.me click-to-chat link (very common for ZW property enquiries). */
 export function whatsappLink(phone?: string | null, text?: string): string | null {
   if (!phone) return null;
-  const digits = phone.replace(/[^0-9]/g, "");
+  let digits = phone.replace(/[^0-9]/g, "");
   if (!digits) return null;
+  // A local Zimbabwean number ("0775 472 523") needs the country code for WhatsApp.
+  if (digits.startsWith("0") && digits.length === 10) digits = `263${digits.slice(1)}`;
   const query = text ? `?text=${encodeURIComponent(text)}` : "";
   return `https://wa.me/${digits}${query}`;
+}
+
+/**
+ * A phone number as shown on the site. Zimbabwean numbers, however they were
+ * typed ("+263775472523", "+263 775 472 523", "0775 472 523"), all read the
+ * standard way: "+263 77 547 2523". Anything else is shown as typed.
+ */
+export function formatPhone(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  const digits = value.replace(/\D/g, "");
+  const local = digits.startsWith("263") && digits.length === 12
+    ? digits.slice(3)
+    : digits.startsWith("0") && digits.length === 10
+      ? digits.slice(1)
+      : null;
+  if (!local) return value;
+  return `+263 ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
+}
+
+/**
+ * "Suburb, City" for a listing, without saying a town twice: a geocoded city
+ * like "Victoria Falls Municipality" for the suburb "Victoria Falls" reads
+ * just "Victoria Falls".
+ */
+export function placeName(suburb: string | null | undefined, city: string | null | undefined): string {
+  const s = suburb?.trim() ?? "";
+  const c = city?.trim() ?? "";
+  if (!s) return c;
+  if (!c || c.toLowerCase().includes(s.toLowerCase())) return s;
+  return `${s}, ${c}`;
+}
+
+/** Capitalise the first letter, for text typed all in lower case. */
+export function capitalise(text: string | null | undefined): string {
+  const t = text?.trim() ?? "";
+  return t ? t[0].toUpperCase() + t.slice(1) : t;
 }

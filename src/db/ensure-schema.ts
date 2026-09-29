@@ -31,6 +31,7 @@ const COLUMNS = [
   { table: "listings", column: "ref_number", type: sql`integer` },
   { table: "listings", column: "category", type: sql`text` },
   { table: "listings", column: "sold_at", type: sql`timestamp with time zone` },
+  { table: "agency_settings", column: "testimonials", type: sql`jsonb` },
 ] as const;
 
 export async function ensureSchema(): Promise<void> {
@@ -48,7 +49,8 @@ export async function ensureSchema(): Promise<void> {
           ('listing_videos', 'poster_url'),
           ('listings', 'ref_number'),
           ('listings', 'category'),
-          ('listings', 'sold_at')
+          ('listings', 'sold_at'),
+          ('agency_settings', 'testimonials')
         )
     `)) as unknown as { table_name: string; column_name: string }[];
     present = new Set(
@@ -78,9 +80,31 @@ export async function ensureSchema(): Promise<void> {
       console.log(`[schema] added ${table}.${column}`);
     } catch (err) {
       console.error(
-        `[schema] ensure failed: could not add ${table}.${column} — apply drizzle/0005_listing_recycle_bin.sql by hand:`,
+        `[schema] ensure failed: could not add ${table}.${column} — apply the matching drizzle/*.sql by hand:`,
         err,
       );
     }
+  }
+
+  // The "rented" status (drizzle/0009). Only when the value is first added:
+  // rentals marked Rented the old way (status "sold") move across once. After
+  // that a rental can genuinely be marked Sold, so it's never touched again.
+  // (Adding an enum value can't share a transaction with using it, hence the
+  // separate statements.)
+  try {
+    const had = (await db.execute(sql`
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'listing_status' AND e.enumlabel = 'rented'
+    `)) as unknown as unknown[];
+    if (Array.isArray(had) && had.length === 0) {
+      await db.execute(sql`ALTER TYPE "listing_status" ADD VALUE IF NOT EXISTS 'rented'`);
+      const moved = (await db.execute(
+        sql`UPDATE "listings" SET "status" = 'rented' WHERE "status" = 'sold' AND "kind" = 'rent' RETURNING "id"`,
+      )) as unknown as unknown[];
+      const count = Array.isArray(moved) ? moved.length : 0;
+      console.log(`[schema] added the rented status; moved ${count} let rental(s) to it`);
+    }
+  } catch (err) {
+    console.error("[schema] ensure failed: could not add the rented status:", err);
   }
 }

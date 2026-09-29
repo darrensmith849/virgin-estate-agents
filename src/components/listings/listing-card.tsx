@@ -4,7 +4,7 @@ import { BedDouble, Bath, Maximize, MapPin, ImageOff, ArrowRight } from "lucide-
 
 import type { Listing } from "@/db/schema";
 import { StatusStamp, stampLabel } from "./status-stamp";
-import { formatPrice, formatArea, cn } from "@/lib/utils";
+import { formatPrice, formatArea, cn, placeName } from "@/lib/utils";
 import { getAgencySettings } from "@/lib/data/settings";
 import { resolveVocabulary } from "@/lib/vocabulary";
 import { mediaSrc } from "@/lib/media";
@@ -106,7 +106,7 @@ export async function ListingCard({
         {listing.suburb && (
           <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
             <MapPin size={13} className="text-sand" />
-            {listing.suburb}, {listing.city}
+            {placeName(listing.suburb, listing.city)}
           </p>
         )}
 

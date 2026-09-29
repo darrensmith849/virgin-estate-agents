@@ -9,9 +9,9 @@ import { formatPrice } from "@/lib/utils";
  * market, each with its reference, the date, and the way back if the deal
  * falls through.
  */
-export async function ClosedListings({ kind }: { kind: "sale" | "rent" }) {
-  const found = await listSoldListings(kind);
-  const word = kind === "rent" ? "Rented" : "Sold";
+export async function ClosedListings({ status }: { status: "sold" | "rented" }) {
+  const found = await listSoldListings(status);
+  const word = status === "rented" ? "Rented" : "Sold";
 
   // Dates are worded here, on the server, so the page reads the same wherever
   // it's opened (and in the agency's own time zone).
@@ -39,12 +39,12 @@ export async function ClosedListings({ kind }: { kind: "sale" | "rent" }) {
       <PageHeader
         title={word}
         description={
-          kind === "rent"
-            ? `${rows.length} rented · still shown on the website, marked RENTED. If a let falls through, put it back on the market.`
-            : `${rows.length} sold · still shown on the website, marked SOLD. If a sale falls through, put it back on the market.`
+          status === "rented"
+            ? "Listings marked Rented. They stay on the website, marked RENTED — if a let falls through, put it back on the market."
+            : "Listings marked Sold. They stay on the website, marked SOLD — if a sale falls through, put it back on the market."
         }
       />
-      <SoldList rows={rows} kind={kind} />
+      <SoldList rows={rows} status={status} />
     </>
   );
 }

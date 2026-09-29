@@ -22,8 +22,8 @@ import { SITE } from "@/lib/constants";
 const VARIANTS = [
   // Cards, the gallery's main photo and the viewer (quality 60).
   ...[640, 828, 1080, 1200, 1920].map((w) => ({ w, q: 60 })),
-  // Gallery thumbnails (quality 50).
-  ...[128, 256].map((w) => ({ w, q: 50 })),
+  // Gallery thumbnails (quality 50; square crops, so wider than they look).
+  ...[384, 640].map((w) => ({ w, q: 50 })),
 ];
 /** What browsers send, so the cached copy is the AVIF they'll ask for. */
 const ACCEPT = "image/avif,image/webp,*/*";
@@ -51,7 +51,7 @@ async function run(base: string) {
     .from(listingImages)
     .innerJoin(listings, eq(listingImages.listingId, listings.id))
     .where(
-      and(inArray(listings.status, ["for_sale", "under_offer", "sold"]), isNull(listings.deletedAt)),
+      and(inArray(listings.status, ["for_sale", "under_offer", "sold", "rented"]), isNull(listings.deletedAt)),
     )
     .orderBy(desc(listings.isFeatured), asc(listings.featuredOrder), asc(listingImages.sortOrder));
 

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agencySettings } from "@/db/schema";
 import { SITE } from "@/lib/constants";
+import { formatPhone } from "@/lib/utils";
 import { safeRead } from "./_safe";
 
 /** Fallback used when the database isn't connected yet, so the public site
@@ -29,6 +30,7 @@ const FALLBACK_SETTINGS: typeof agencySettings.$inferSelect = {
   propertyTypeOptions: null,
   specOptions: null,
   hiddenSpecs: null,
+  testimonials: null,
   updatedAt: new Date(0),
 };
 
@@ -69,8 +71,9 @@ export const getContactDetails = cache(async function getContactDetails() {
   const s = await getAgencySettings();
   const pick = (value: string | null | undefined, fallback: string) => value?.trim() || fallback;
   return {
-    phone: pick(s.phone, SITE.phone),
-    whatsapp: pick(s.whatsapp, SITE.whatsapp),
+    // One format everywhere, however the number was typed in Settings.
+    phone: formatPhone(pick(s.phone, SITE.phone)),
+    whatsapp: formatPhone(pick(s.whatsapp, SITE.whatsapp)),
     email: pick(s.email, SITE.email),
     address: pick(s.officeAddress, SITE.address),
     social: {

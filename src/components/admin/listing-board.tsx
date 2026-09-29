@@ -15,13 +15,7 @@ import {
 
 import { setFeaturedOrder, setListingStatus, deleteListing } from "@/lib/actions/listings";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import {
-  LISTING_BIN_DAYS,
-  formatRef,
-  fromStatusChoice,
-  statusChoice,
-  statusChoices,
-} from "@/lib/constants";
+import { LISTING_BIN_DAYS, formatRef, isClosedStatus, statusChoices } from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -54,7 +48,7 @@ export type BoardListing = {
   agentName: string | null;
 };
 
-const KIND_LABEL: Record<string, string> = { sale: "For sale", rent: "To rent" };
+const KIND_LABEL: Record<string, string> = { sale: "For Sale", rent: "To Rent" };
 
 type Handlers = {
   /* Accessors rather than the ref itself: reaching through props to mutate
@@ -66,7 +60,7 @@ type Handlers = {
   nudge: (id: string, direction: -1 | 1) => void;
   start: (fn: () => void) => void;
   /** Mark a listing Sold or Rented: it leaves the board for that tab. */
-  markSold: (listing: BoardListing, kind: "sale" | "rent") => void;
+  markSold: (listing: BoardListing, status: "sold" | "rented") => void;
   setOverZone: (fn: (z: string | null) => string | null) => void;
 };
 
@@ -161,11 +155,11 @@ function Card({
       </span>
 
       <select
-        value={statusChoice(listing.status, listing.kind)}
+        value={listing.status}
         onChange={(e) => {
-          const choice = fromStatusChoice(e.target.value);
-          if (choice.status === "sold") h.markSold(listing, choice.kind ?? listing.kind);
-          else h.start(() => void setListingStatus(listing.id, choice.status));
+          const status = e.target.value;
+          if (isClosedStatus(status)) h.markSold(listing, status);
+          else h.start(() => void setListingStatus(listing.id, status));
         }}
         aria-label={`Status of ${listing.title}`}
         className="rounded-full border border-line bg-paper-2 px-2.5 py-1 text-xs text-ink"
@@ -267,23 +261,11 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
   /** Says where a listing marked Sold / Rented went, rather than it vanishing. */
   const [soldNotice, setSoldNotice] = useState<{ title: string; rent: boolean } | null>(null);
 
-  function markSold(listing: BoardListing, kind: "sale" | "rent") {
-    // Rented on a for-sale listing (or Sold on a rental) changes its type:
-    // check first, since its price then reads as rent (or a sale price).
-    if (
-      kind !== listing.kind &&
-      !window.confirm(
-        kind === "rent"
-          ? `"${listing.title}" is listed For Sale. Mark it Rented? It becomes a rental — check its price is the monthly rent.`
-          : `"${listing.title}" is listed To Rent. Mark it Sold? It becomes a sale — check its price is the sale price.`,
-      )
-    ) {
-      return;
-    }
-    setSoldNotice({ title: listing.title, rent: kind === "rent" });
+  function markSold(listing: BoardListing, status: "sold" | "rented") {
+    setSoldNotice({ title: listing.title, rent: status === "rented" });
     start(() => {
       setItems(items.filter((l) => l.id !== listing.id));
-      void setListingStatus(listing.id, "sold", kind);
+      void setListingStatus(listing.id, status);
     });
   }
 
@@ -362,7 +344,8 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
         <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="flex items-center gap-2 text-lg">
             <Star size={17} className="text-sand" />
-            On the homepage
+            On the homepage{" "}
+            <span className="text-sm font-normal text-muted">({featured.length})</span>
           </h2>
           <p className="text-sm text-muted">
             Shown in the featured grid, in this order. Drag to rearrange.
@@ -382,8 +365,8 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
           a listing in either takes it off the homepage, into its own group. */}
       {(
         [
-          { kind: "sale", title: "For sale", rows: forSale, empty: "No listings for sale that aren't on the homepage." },
-          { kind: "rent", title: "To rent", rows: toRent, empty: "No rentals yet — set a listing's type to To Rent and it appears here." },
+          { kind: "sale", title: "For Sale", rows: forSale, empty: "No listings for sale that aren't on the homepage." },
+          { kind: "rent", title: "To Rent", rows: toRent, empty: "No rentals yet — set a listing's type to To Rent and it appears here." },
         ] as const
       ).map((group) => (
         <section key={group.kind}>

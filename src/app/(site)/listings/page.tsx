@@ -198,26 +198,33 @@ export default async function ListingsPage({
                                 bothKinds ? "text-lg" : "text-xl",
                               )}
                             >
-                              {/* Click a category to see only that category. */}
+                              {/* Click a category to see only that category:
+                                  name, count, then the arrow. */}
                               {category ? (
-                                cat.label
+                                <>
+                                  {cat.label}
+                                  <span className="text-sm font-normal text-muted">
+                                    {count(cat.rows.length)}
+                                  </span>
+                                </>
                               ) : (
                                 <Link
                                   href={categoryHref(cat.key)}
                                   prefetch
                                   scroll={false}
-                                  className="group inline-flex items-baseline gap-1.5 transition-colors hover:text-brand"
+                                  className="group inline-flex items-baseline gap-3 transition-colors hover:text-brand"
                                 >
                                   {cat.label}
+                                  <span className="text-sm font-normal text-muted">
+                                    {count(cat.rows.length)}
+                                  </span>
                                   <ArrowRight
                                     size={15}
-                                    className="self-center text-muted transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-brand"
+                                    aria-hidden
+                                    className="-ml-1 self-center text-muted transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-brand"
                                   />
                                 </Link>
                               )}
-                              <span className="text-sm font-normal text-muted">
-                                {count(cat.rows.length)}
-                              </span>
                             </Heading>
                             {grid(cat.rows)}
                           </div>

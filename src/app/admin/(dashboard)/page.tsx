@@ -68,16 +68,20 @@ export default async function DashboardPage() {
               <li className="px-5 py-6 text-sm text-muted">No enquiries yet.</li>
             )}
             {stats.recentEnquiries.map((e) => (
-              <li key={e.id} className="px-5 py-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-medium text-ink">{e.name}</p>
-                  <span className="shrink-0 text-xs text-muted">
-                    {timeAgo(e.createdAt)}
-                  </span>
-                </div>
-                <p className="truncate text-xs text-muted">
-                  {e.listing?.title ?? "General enquiry"}
-                </p>
+              <li key={e.id}>
+                <Link
+                  href={`/admin/enquiries#enquiry-${e.id}`}
+                  className="group flex items-center gap-3 px-5 py-3.5 hover:bg-paper-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{e.name}</p>
+                    <p className="truncate text-xs text-muted">
+                      {e.listing?.title ?? "General enquiry"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted">{timeAgo(e.createdAt)}</span>
+                  <ChevronRight size={16} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+                </Link>
               </li>
             ))}
           </ul>
@@ -102,9 +106,9 @@ export default async function DashboardPage() {
               <li key={l.id}>
                 <Link
                   href={`/admin/listings/${l.id}/edit`}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-paper-2"
+                  className="group flex items-center gap-3 px-5 py-3.5 hover:bg-paper-2"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{l.title}</p>
                     <p className="text-xs text-muted">
                       {[formatRef(l.refNumber), formatPrice(l.price, { kind: l.kind, period: l.rentPeriod })]
@@ -113,6 +117,7 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <StatusBadge status={l.status} kind={l.kind} />
+                  <ChevronRight size={16} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </li>
             ))}
@@ -164,13 +169,13 @@ export default async function DashboardPage() {
                     {[
                       l.suburb,
                       formatPrice(l.price, { kind: l.kind, period: l.rentPeriod }),
-                      l.soldAt ? `${l.kind === "rent" ? "rented" : "sold"} ${timeAgo(l.soldAt)}` : null,
+                      l.soldAt ? `${l.status === "rented" ? "rented" : "sold"} ${timeAgo(l.soldAt)}` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
                 </div>
-                <StatusBadge status="sold" kind={l.kind} />
+                <StatusBadge status={l.status} kind={l.kind} />
                 <ChevronRight size={16} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
               </Link>
             </li>

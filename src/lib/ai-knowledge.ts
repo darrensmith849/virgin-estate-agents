@@ -69,13 +69,15 @@ export function formatListingsContext(items: AssistantListing[]): string {
   if (!items.length) return "";
 
   const label = (l: AssistantListing) =>
-    l.kind === "rent"
-      ? "To Rent"
-      : l.status === "sold"
-        ? "Sold"
+    l.status === "sold"
+      ? "Sold"
+      : l.status === "rented"
+        ? "Rented"
         : l.status === "under_offer"
           ? "Under Offer"
-          : "For Sale";
+          : l.kind === "rent"
+            ? "To Rent"
+            : "For Sale";
 
   const money = (l: AssistantListing) =>
     l.kind === "rent"

@@ -23,6 +23,7 @@ export const listingStatus = pgEnum("listing_status", [
   "for_sale",
   "under_offer",
   "sold",
+  "rented",
 ]);
 
 export const listingKind = pgEnum("listing_kind", ["sale", "rent"]);
@@ -264,6 +265,8 @@ export const agencySettings = pgTable("agency_settings", {
   specOptions: jsonb("spec_options").$type<string[]>(),
   /** Standard specs (keys of DEFAULT_SPEC_LABELS) hidden from the listing form. */
   hiddenSpecs: jsonb("hidden_specs").$type<string[]>(),
+  /** Client quotes for the homepage, edited in Settings; none = section hidden. */
+  testimonials: jsonb("testimonials").$type<{ quote: string; name: string; area?: string }[]>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

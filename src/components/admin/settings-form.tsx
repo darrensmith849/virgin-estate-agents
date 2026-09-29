@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { Save } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Plus, Save, Trash2 } from "lucide-react";
 
 import { updateSettings, type SettingsFormState } from "@/lib/actions/settings";
 import type { AgencySettings } from "@/db/schema";
@@ -9,6 +9,105 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/form";
 import { DEFAULT_KIND_LABELS, DEFAULT_SPEC_LABELS } from "@/lib/constants";
 import { resolveVocabulary } from "@/lib/vocabulary";
+
+type Testimonial = { quote: string; name: string; area?: string };
+const MAX_TESTIMONIALS = 12;
+
+/*
+ * Client testimonials for the homepage. Real quotes only: the section stays
+ * hidden on the site until at least one is saved here.
+ */
+function TestimonialsEditor({ initial }: { initial: Testimonial[] }) {
+  const [rows, setRows] = useState<(Testimonial & { key: number })[]>(
+    initial.map((t, i) => ({ ...t, key: i })),
+  );
+  const [nextKey, setNextKey] = useState(initial.length);
+  const update = (key: number, field: keyof Testimonial, value: string) =>
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
+
+  return (
+    <section className="rounded-xl border border-line bg-card p-6">
+      <h2 className="text-lg">Testimonials</h2>
+      <p className="mt-1 text-sm text-muted">
+        Quotes from real clients, shown on the homepage under &ldquo;What our clients say&rdquo;.
+        The section only appears once there&rsquo;s at least one.
+      </p>
+      {/* Tells the save that this section was on the form. */}
+      <input type="hidden" name="testimonialsPresent" value="1" />
+
+      <div className="mt-5 space-y-4">
+        {rows.length === 0 && (
+          <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+            No testimonials yet — the homepage section is hidden.
+          </p>
+        )}
+        {rows.map((row, i) => (
+          <div key={row.key} className="rounded-lg border border-line p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-medium text-ink">Testimonial {i + 1}</p>
+              <button
+                type="button"
+                onClick={() => setRows((prev) => prev.filter((r) => r.key !== row.key))}
+                aria-label={`Remove testimonial ${i + 1}`}
+                className="rounded-md p-1.5 text-red-600 transition-colors hover:bg-red-50"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+            <Field label="Quote" htmlFor={`testimonialQuote-${row.key}`} className="mt-3">
+              <Textarea
+                id={`testimonialQuote-${row.key}`}
+                name="testimonialQuote"
+                value={row.quote}
+                onChange={(e) => update(row.key, "quote", e.target.value)}
+                rows={3}
+                maxLength={600}
+                placeholder="What the client said, in their words."
+              />
+            </Field>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label="Client name" htmlFor={`testimonialName-${row.key}`}>
+                <Input
+                  id={`testimonialName-${row.key}`}
+                  name="testimonialName"
+                  value={row.name}
+                  onChange={(e) => update(row.key, "name", e.target.value)}
+                  maxLength={80}
+                  placeholder="e.g. The Moyo family"
+                />
+              </Field>
+              <Field label="Area (optional)" htmlFor={`testimonialArea-${row.key}`}>
+                <Input
+                  id={`testimonialArea-${row.key}`}
+                  name="testimonialArea"
+                  value={row.area ?? ""}
+                  onChange={(e) => update(row.key, "area", e.target.value)}
+                  maxLength={60}
+                  placeholder="e.g. Borrowdale"
+                />
+              </Field>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {rows.length < MAX_TESTIMONIALS && (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4"
+          onClick={() => {
+            setRows((prev) => [...prev, { key: nextKey, quote: "", name: "", area: "" }]);
+            setNextKey((k) => k + 1);
+          }}
+        >
+          <Plus size={16} />
+          Add a testimonial
+        </Button>
+      )}
+    </section>
+  );
+}
 
 export function SettingsForm({ settings }: { settings: AgencySettings }) {
   const [state, action, pending] = useActionState<SettingsFormState, FormData>(
@@ -178,6 +277,8 @@ export function SettingsForm({ settings }: { settings: AgencySettings }) {
           />
         </div>
       </section>
+
+      <TestimonialsEditor initial={settings.testimonials ?? []} />
 
       <section className="rounded-xl border border-line bg-card p-6">
         <h2 className="text-lg">Social links</h2>

@@ -47,6 +47,15 @@ export type SettingsFormState =
   | { ok?: boolean; error?: string; fieldErrors?: Record<string, string[]> }
   | undefined;
 
+function collectTestimonials(formData: FormData) {
+  const quotes = formData.getAll("testimonialQuote").map((v) => String(v).trim());
+  const names = formData.getAll("testimonialName").map((v) => String(v).trim());
+  const areas = formData.getAll("testimonialArea").map((v) => String(v).trim());
+  return quotes
+    .map((quote, i) => ({ quote, name: names[i] ?? "", area: areas[i] || undefined }))
+    .filter((t) => t.quote && t.name);
+}
+
 export async function updateSettings(
   _prev: SettingsFormState,
   formData: FormData,
@@ -77,6 +86,9 @@ export async function updateSettings(
     hiddenSpecs: formData.has("specShownPresent")
       ? hiddenSpecKeys(formData)
       : undefined,
+    // Rows arrive as parallel quote / name / area fields; a row without a quote
+    // or a name is dropped. Only touched when the form carried the section.
+    testimonials: formData.has("testimonialsPresent") ? collectTestimonials(formData) : undefined,
   });
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };

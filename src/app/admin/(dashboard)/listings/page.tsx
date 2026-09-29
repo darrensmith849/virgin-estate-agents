@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Home, Plus } from "lucide-react";
 
 import { listAdminListings } from "@/lib/data/listings";
 import { purgeExpiredListings } from "@/lib/actions/listings";
 import { PageHeader } from "@/components/admin/page-header";
+import { EmptyState } from "@/components/admin/empty-state";
 import { ListingBoard, type BoardListing } from "@/components/admin/listing-board";
 import { buttonVariants } from "@/components/ui/button";
+import { isClosedStatus } from "@/lib/constants";
 
 export const metadata = { title: "Listings" };
 
@@ -14,10 +16,10 @@ export default async function AdminListingsPage() {
   // alongside the read, since binned listings aren't on the board anyway.
   const [, items] = await Promise.all([purgeExpiredListings(), listAdminListings()]);
   // Sold and rented listings move to their own tabs.
-  const sold = items.filter((l) => l.status === "sold" && l.kind === "sale").length;
-  const rented = items.filter((l) => l.status === "sold" && l.kind === "rent").length;
+  const sold = items.filter((l) => l.status === "sold").length;
+  const rented = items.filter((l) => l.status === "rented").length;
   const time = (d: Date | null) => (d ? new Date(d).getTime() : 0);
-  const active = items.filter((l) => l.status !== "sold");
+  const active = items.filter((l) => !isClosedStatus(l.status));
   // The homepage group, in the order the homepage shows it.
   const featured = active
     .filter((l) => l.isFeatured)
@@ -71,16 +73,18 @@ export default async function AdminListingsPage() {
       </PageHeader>
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-card p-12 text-center">
-          <p className="text-muted">No listings yet.</p>
-          <Link
-            href="/admin/listings/new"
-            className={buttonVariants({ variant: "primary", size: "sm", className: "mt-4" })}
-          >
-            <Plus size={16} />
-            Create your first listing
-          </Link>
-        </div>
+        <EmptyState
+          icon={Home}
+          title="No listings yet"
+          action={
+            <Link href="/admin/listings/new" className={buttonVariants({ variant: "primary", size: "sm" })}>
+              <Plus size={16} />
+              Create your first listing
+            </Link>
+          }
+        >
+          Add a property, publish it, and it appears on the website straight away.
+        </EmptyState>
       ) : (
         <>
           <ListingBoard listings={board} />

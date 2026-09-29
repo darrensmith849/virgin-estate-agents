@@ -47,7 +47,7 @@ export async function getDashboardStats() {
       }),
       // The most recent sales; the Sold tab has them all.
       db.query.listings.findMany({
-        where: and(eq(listings.status, "sold"), isNull(listings.deletedAt)),
+        where: and(inArray(listings.status, ["sold", "rented"]), isNull(listings.deletedAt)),
         orderBy: [sql`${listings.soldAt} desc nulls last`, desc(listings.refNumber)],
         limit: 5,
         columns: {
@@ -59,12 +59,13 @@ export async function getDashboardStats() {
           rentPeriod: true,
           refNumber: true,
           soldAt: true,
+          status: true,
         },
       }),
       db
         .select({ c: sql<number>`count(*)::int` })
         .from(listings)
-        .where(and(eq(listings.status, "sold"), isNull(listings.deletedAt))),
+        .where(and(inArray(listings.status, ["sold", "rented"]), isNull(listings.deletedAt))),
     ]);
 
   return {

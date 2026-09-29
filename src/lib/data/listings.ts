@@ -46,7 +46,7 @@ export type PublicListingFilters = {
   perPage?: number;
 };
 
-const PUBLIC_STATUSES = ["for_sale", "under_offer", "sold"] as const;
+const PUBLIC_STATUSES = ["for_sale", "under_offer", "sold", "rented"] as const;
 
 /**
  * Residential, commercial, industrial, then land: the category chosen on the
@@ -182,8 +182,8 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
         db
           .select({
             count: sql<number>`count(*)::int`,
-            sold: sql<number>`(count(*) filter (where ${listings.status} = 'sold' and ${listings.kind} = 'sale'))::int`,
-            rented: sql<number>`(count(*) filter (where ${listings.status} = 'sold' and ${listings.kind} = 'rent'))::int`,
+            sold: sql<number>`(count(*) filter (where ${listings.status} = 'sold'))::int`,
+            rented: sql<number>`(count(*) filter (where ${listings.status} = 'rented'))::int`,
           })
           .from(listings)
           .where(where),
@@ -361,12 +361,12 @@ export async function listAdminListings() {
 }
 
 /**
- * The Sold tab (kind "sale") or the Rented tab (kind "rent"): listings marked
- * sold / rented, in reference order, with a cover photo.
+ * The Sold tab or the Rented tab: listings marked sold / rented, in reference
+ * order, with a cover photo.
  */
-export async function listSoldListings(kind: "sale" | "rent") {
+export async function listSoldListings(status: "sold" | "rented") {
   return db.query.listings.findMany({
-    where: and(eq(listings.status, "sold"), eq(listings.kind, kind), notDeleted),
+    where: and(eq(listings.status, status), notDeleted),
     orderBy: [asc(listings.refNumber), asc(listings.publishedAt)],
     columns: {
       id: true,
@@ -395,11 +395,11 @@ export async function countSoldListings(): Promise<{ sold: number; rented: numbe
     async () => {
       const [row] = await db
         .select({
-          sold: sql<number>`(count(*) filter (where ${listings.kind} = 'sale'))::int`,
-          rented: sql<number>`(count(*) filter (where ${listings.kind} = 'rent'))::int`,
+          sold: sql<number>`(count(*) filter (where ${listings.status} = 'sold'))::int`,
+          rented: sql<number>`(count(*) filter (where ${listings.status} = 'rented'))::int`,
         })
         .from(listings)
-        .where(and(eq(listings.status, "sold"), notDeleted));
+        .where(and(inArray(listings.status, ["sold", "rented"]), notDeleted));
       return { sold: row?.sold ?? 0, rented: row?.rented ?? 0 };
     },
     { sold: 0, rented: 0 },

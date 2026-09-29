@@ -80,34 +80,23 @@ export const LISTING_STATUSES = [
   { value: "for_sale", label: "For Sale", tone: "brand" },
   { value: "under_offer", label: "Under Offer", tone: "amber" },
   { value: "sold", label: "Sold", tone: "neutral" },
+  { value: "rented", label: "Rented", tone: "neutral" },
 ] as const;
 
-/*
- * The status choices offered for a listing. Sold and Rented are both offered
- * whatever the listing's type: picking the one that doesn't match also
- * switches the type (a property listed for sale that ends up rented out).
- * "rented" isn't stored as such — it's status "sold" on a rental.
+/** Statuses that take a listing off the market (to the Sold / Rented tabs). */
+export const CLOSED_STATUSES = ["sold", "rented"] as const;
+
+export function isClosedStatus(status: string): status is (typeof CLOSED_STATUSES)[number] {
+  return (CLOSED_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * The status choices offered for a listing — Sold and Rented both, whatever
+ * its type. Neither changes the listing's type or price, so putting it back
+ * on the market returns it exactly as it was.
  */
 export function statusChoices(kind?: string | null): { value: string; label: string }[] {
-  return [
-    { value: "draft", label: "Draft" },
-    { value: "for_sale", label: kind === "rent" ? "To Rent" : "For Sale" },
-    { value: "under_offer", label: "Under Offer" },
-    { value: "sold", label: "Sold" },
-    { value: "rented", label: "Rented" },
-  ];
-}
-
-/** The choice showing for a listing's stored status. */
-export function statusChoice(status: string, kind?: string | null): string {
-  return status === "sold" && kind === "rent" ? "rented" : status;
-}
-
-/** What a choice means: the status to store, and the type it sets, if any. */
-export function fromStatusChoice(choice: string): { status: string; kind?: "sale" | "rent" } {
-  if (choice === "rented") return { status: "sold", kind: "rent" };
-  if (choice === "sold") return { status: "sold", kind: "sale" };
-  return { status: choice };
+  return LISTING_STATUSES.map((s) => ({ value: s.value, label: statusLabel(s.value, kind) }));
 }
 
 /** A listing's reference as shown to people: 7 → "VE-007". */
@@ -115,10 +104,9 @@ export function formatRef(refNumber: number | null | undefined): string | null {
   return refNumber ? `VE-${String(refNumber).padStart(3, "0")}` : null;
 }
 
-/** A status as it reads for this listing: a rental is "To Rent", then "Rented". */
+/** A status as it reads for this listing: an available rental is "To Rent". */
 export function statusLabel(status: string, kind?: string | null): string {
   if (kind === "rent" && status === "for_sale") return "To Rent";
-  if (kind === "rent" && status === "sold") return "Rented";
   return LISTING_STATUSES.find((s) => s.value === status)?.label ?? "Draft";
 }
 

@@ -30,7 +30,7 @@ const optionalFloat = z
 export const listingSchema = z.object({
   title: z.string().trim().min(3, "Title must be at least 3 characters"),
   description: z.string().trim().default(""),
-  status: z.enum(["draft", "for_sale", "under_offer", "sold"]),
+  status: z.enum(["draft", "for_sale", "under_offer", "sold", "rented"]),
   kind: z.enum(["sale", "rent"]),
   // Free text since the agency names its own types. Capped to the column width;
   // the built-in list is offered as suggestions, not enforced.
@@ -118,6 +118,16 @@ export const settingsSchema = z.object({
   propertyTypeOptions: z.array(z.string().trim().min(1).max(60)).max(100).nullish(),
   specOptions: z.array(z.string().trim().min(1).max(60)).max(40).nullish(),
   hiddenSpecs: z.array(z.string()).max(10).nullish(),
+  testimonials: z
+    .array(
+      z.object({
+        quote: z.string().trim().min(1).max(600, "Please keep each testimonial under 600 characters"),
+        name: z.string().trim().min(1).max(80),
+        area: z.string().trim().max(60).optional(),
+      }),
+    )
+    .max(12)
+    .nullish(),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;
 

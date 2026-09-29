@@ -27,10 +27,11 @@ import { ShareButton } from "@/components/listings/share-button";
 import { ViewTracker } from "@/components/listings/view-tracker";
 import { AdminBar } from "@/components/admin/admin-bar";
 import { ListingCard } from "@/components/listings/listing-card";
-import { SITE, formatRef } from "@/lib/constants";
+import { SITE, formatRef, statusLabel } from "@/lib/constants";
+import { buttonVariants } from "@/components/ui/button";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 import { slugifySuburb, suburbBlurb, suburbFromSlug } from "@/lib/suburbs";
-import { formatArea, formatPrice } from "@/lib/utils";
+import { capitalise, cn, formatArea, formatPrice, placeName } from "@/lib/utils";
 
 export type DetailListing = NonNullable<
   Awaited<ReturnType<typeof getListingBySlug>>
@@ -91,7 +92,7 @@ export function ListingDetail({
       price: listing.price,
       priceCurrency: "USD",
       availability:
-        listing.status === "sold"
+        listing.status === "sold" || listing.status === "rented"
           ? "https://schema.org/SoldOut"
           : "https://schema.org/InStock",
     },
@@ -130,13 +131,9 @@ export function ListingDetail({
     })),
   };
 
-  // At-a-glance key facts (factual data only).
-  const statusLabels: Record<string, string> = {
-    for_sale: "For sale",
-    under_offer: "Under offer",
-    sold: "Sold",
-    draft: "Draft",
-  };
+  // At-a-glance key facts (factual data only). An available listing's status
+  // uses the agency's own wording for sale / rent, like the rest of the site.
+  const kindWord = vocabulary.kindLabels[listing.kind];
   const keyFacts = [
     {
       label: "Reference",
@@ -153,7 +150,10 @@ export function ListingDetail({
           }),
         }
       : null,
-    { label: "Status", value: statusLabels[listing.status] ?? listing.status },
+    {
+      label: "Status",
+      value: listing.status === "for_sale" ? kindWord : statusLabel(listing.status, listing.kind),
+    },
     listing.kind === "sale" && listing.floorSizeSqm
       ? {
           label: "Price per m²",
@@ -233,18 +233,11 @@ export function ListingDetail({
               className="absolute left-4 top-4 z-10 sm:left-5 sm:top-5"
             />
           </div>
-          <VideoGallery
-            videos={listing.videos.map((video) => ({
-              id: video.id,
-              url: video.url,
-              title: video.title,
-              posterUrl: video.posterUrl,
-            }))}
-            title={listing.title}
-          />
 
-          <div className="mt-8 flex flex-wrap items-start justify-between gap-4">
-            <div>
+          {/* Title on the left, price on the right — a fixed two-column row, so
+              a long title wraps beside the price instead of pushing it under. */}
+          <div className="mt-8 grid items-start gap-4 sm:grid-cols-[1fr_auto]">
+            <div className="min-w-0">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl sm:text-4xl">{listing.title}</h1>
                 {listing.status !== "for_sale" && (
@@ -254,44 +247,56 @@ export function ListingDetail({
               {(listing.suburb || listing.addressLine) && (
                 <p className="mt-2 flex items-center gap-1.5 text-muted">
                   <MapPin size={16} className="text-sand" />
-                  {[listing.addressLine, listing.suburb, listing.city]
+                  {[capitalise(listing.addressLine), placeName(listing.suburb, listing.city)]
                     .filter(Boolean)
                     .join(", ")}
                 </p>
               )}
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <p className="text-3xl font-medium text-ink">
                 {formatPrice(listing.price, { kind: listing.kind, period: listing.rentPeriod })}
               </p>
-              <p className="text-sm text-muted">
-                {listing.kind === "rent" ? "To rent" : "For sale"}
-              </p>
+              <p className="text-sm text-muted">{kindWord}</p>
+              {/* On phones the enquiry form is at the bottom, after the whole
+                  listing — a shortcut straight to it, with Share beside it. */}
+              <div className="mt-4 flex gap-2 lg:hidden">
+                <a
+                  href="#enquire"
+                  className={buttonVariants({ variant: "primary", size: "md", className: "flex-1" })}
+                >
+                  Enquire about this property
+                </a>
+                <ShareButton title={listing.title} />
+              </div>
             </div>
           </div>
 
-          {/* Key stats */}
-          {/* Boxes grow to fill their row, so an odd count (a plot with only
-              a type and a size) never leaves an empty grey cell. */}
-          <div className="mt-8 flex flex-wrap gap-px overflow-hidden rounded-xl border border-line bg-line">
+          {/* Key stats — up to six in one row on a desktop */}
+          <EvenGrid
+            count={stats.length}
+            sm={stats.length <= 4 ? stats.length : 3}
+            lg={stats.length <= 6 ? stats.length : 4}
+            className="mt-8"
+          >
             {stats.map((s, i) => (
-              <div key={i} className="min-w-0 grow basis-[40%] bg-card p-4 sm:basis-[30%]">
+              <div key={i} className="min-w-0 break-words bg-card p-4">
                 <s.icon size={18} className="text-brand" />
                 <p className="mt-2 text-lg font-medium text-ink">{s.value}</p>
                 <p className="text-xs text-muted">{s.label}</p>
               </div>
             ))}
-          </div>
+          </EvenGrid>
 
           {/* Key facts — at a glance */}
-          <dl className="mt-4 flex flex-wrap gap-px overflow-hidden rounded-xl border border-line bg-line">
+          <EvenGrid as="dl" count={keyFacts.length} sm={keyFacts.length} lg={keyFacts.length} className="mt-4">
             {keyFacts.map((f) => (
-              <div key={f.label} className="min-w-0 grow basis-[40%] bg-card p-4 sm:basis-[20%]">
+              <div key={f.label} className="min-w-0 bg-card p-4">
                 <dt className="text-xs text-muted">{f.label}</dt>
                 <dd className="mt-1 text-sm font-medium text-ink">{f.value}</dd>
               </div>
             ))}
-          </dl>
+          </EvenGrid>
 
           {/* Description */}
           {listing.description && (
@@ -318,17 +323,28 @@ export function ListingDetail({
             </div>
           )}
 
+          {/* Videos — after the words, so the title and price stay near the top */}
+          <VideoGallery
+            videos={listing.videos.map((video) => ({
+              id: video.id,
+              url: video.url,
+              title: video.title,
+              posterUrl: video.posterUrl,
+            }))}
+            title={listing.title}
+          />
+
           {/* Map */}
           {listing.latitude != null && listing.longitude != null && (
             <div className="mt-10">
               <h2 className="text-2xl">Location</h2>
               <p className="mt-1 mb-4 text-sm text-muted">
-                {listing.suburb}, {listing.city}
+                {placeName(listing.suburb, listing.city)}
               </p>
               <PropertyMap
                 latitude={listing.latitude}
                 longitude={listing.longitude}
-                label={`${listing.suburb ?? ""} ${listing.city}`}
+                label={placeName(listing.suburb, listing.city)}
               />
             </div>
           )}
@@ -361,13 +377,13 @@ export function ListingDetail({
         {/* Sidebar */}
         <aside className="lg:col-span-1">
           <div className="space-y-5 lg:sticky lg:top-24">
-            <div className="flex justify-end">
+            <div className="hidden justify-end lg:flex">
               <ShareButton title={listing.title} />
             </div>
             {listing.agent && (
               <AgentCard agent={listing.agent} listingTitle={listing.title} />
             )}
-            <div className="rounded-xl border border-line bg-card p-5">
+            <div id="enquire" className="scroll-mt-24 rounded-xl border border-line bg-card p-5">
               <h3 className="text-lg">Enquire about this property</h3>
               <p className="mt-1 mb-4 text-sm text-muted">
                 Send a message and we&rsquo;ll be in touch.
@@ -390,5 +406,68 @@ export function ListingDetail({
         </section>
       )}
     </Container>
+  );
+}
+
+const BASE_COLS = { 1: "grid-cols-1", 2: "grid-cols-2" } as const;
+const SM_COLS = { 1: "sm:grid-cols-1", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4" } as const;
+const LG_COLS = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-5",
+  6: "lg:grid-cols-6",
+} as const;
+
+/*
+ * Boxes in even columns — two across on a phone, `sm` on a tablet, `lg` on a
+ * desktop — with blank boxes finishing a short last row, so every box is the
+ * same width and no grey gap shows.
+ */
+function EvenGrid({
+  as: Tag = "div",
+  count,
+  sm,
+  lg,
+  className,
+  children,
+}: {
+  as?: "div" | "dl";
+  count: number;
+  sm: number;
+  lg: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const base = Math.min(count, 2) as keyof typeof BASE_COLS;
+  const smCols = Math.min(Math.max(sm, 1), 4) as keyof typeof SM_COLS;
+  const lgCols = Math.min(Math.max(lg, 1), 6) as keyof typeof LG_COLS;
+  const pad = (cols: number) => (cols - (count % cols)) % cols;
+  const [padBase, padSm, padLg] = [pad(base), pad(smCols), pad(lgCols)];
+  return (
+    <Tag
+      className={cn(
+        "grid gap-px overflow-hidden rounded-xl border border-line bg-line",
+        BASE_COLS[base],
+        SM_COLS[smCols],
+        LG_COLS[lgCols],
+        className,
+      )}
+    >
+      {children}
+      {Array.from({ length: Math.max(padBase, padSm, padLg) }, (_, i) => (
+        <div
+          key={`pad-${i}`}
+          aria-hidden="true"
+          className={cn(
+            "bg-card",
+            i < padBase ? "block" : "hidden",
+            i < padSm ? "sm:block" : "sm:hidden",
+            i < padLg ? "lg:block" : "lg:hidden",
+          )}
+        />
+      ))}
+    </Tag>
   );
 }

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Search, ShieldCheck, MapPinned, Sparkles } from "lucide-react";
+import { ArrowRight, Home, MapPin, ShieldCheck, MapPinned, Sparkles } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
 import { buttonVariants } from "@/components/ui/button";
@@ -80,8 +80,10 @@ export default async function HomePage() {
             method="GET"
             className="hero-search rounded-xl border border-white/15 bg-white/95 p-2 shadow-xl backdrop-blur sm:flex sm:items-center sm:gap-2"
           >
-            <div className="flex flex-1 items-center gap-2 px-3 py-2">
-              <Search size={18} className="shrink-0 text-muted" />
+            {/* Each field has its icon, so the two line up whether side by side
+                or stacked on a phone. */}
+            <div className="flex flex-1 items-center gap-2 border-b border-line px-3 py-2 sm:border-b-0">
+              <MapPin size={18} className="shrink-0 text-muted" />
               <select
                 name="suburb"
                 defaultValue=""
@@ -97,7 +99,8 @@ export default async function HomePage() {
               </select>
             </div>
             <div className="hidden h-8 w-px bg-line sm:block" />
-            <div className="flex flex-1 items-center px-3 py-2">
+            <div className="flex flex-1 items-center gap-2 px-3 py-2">
+              <Home size={18} className="shrink-0 text-muted" />
               <select
                 name="type"
                 defaultValue=""
@@ -240,7 +243,7 @@ export default async function HomePage() {
       {/* ----------------------------------------------------------------- */}
       {/* Testimonials                                                      */}
       {/* ----------------------------------------------------------------- */}
-      <Testimonials />
+      <Testimonials items={settings.testimonials ?? []} />
 
       {/* ----------------------------------------------------------------- */}
       {/* FAQ                                                               */}

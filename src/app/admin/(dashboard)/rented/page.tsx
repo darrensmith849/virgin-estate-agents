@@ -3,5 +3,5 @@ import { ClosedListings } from "@/components/admin/closed-listings";
 export const metadata = { title: "Rented" };
 
 export default function RentedPage() {
-  return <ClosedListings kind="rent" />;
+  return <ClosedListings status="rented" />;
 }

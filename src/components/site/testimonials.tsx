@@ -1,31 +1,13 @@
 import { Container } from "@/components/ui/container";
 
-/*
- * Testimonials — client social proof. Placeholder quotes; replace with the
- * client's real reviews (and add/remove cards) when supplied.
- */
-const TESTIMONIALS: { quote: string; name: string; location: string }[] = [
-  {
-    quote:
-      "Virgin Estate made selling our Borrowdale home effortless — honest advice, beautiful photography, and a serious buyer within weeks.",
-    name: "The Moyo family",
-    location: "Borrowdale",
-  },
-  {
-    quote:
-      "Calm, professional and genuinely knowledgeable about Highlands. We felt looked after from the first viewing to the final signature.",
-    name: "Sarah & James",
-    location: "Highlands",
-  },
-  {
-    quote:
-      "They understood exactly what we were after and never wasted our time. We found the right home in Mount Pleasant faster than we imagined.",
-    name: "T. Ncube",
-    location: "Mount Pleasant",
-  },
-];
+export type TestimonialItem = { quote: string; name: string; area?: string };
 
-export function Testimonials() {
+/*
+ * "What our clients say": real client quotes, managed in Settings →
+ * Testimonials. With none saved, the section isn't shown at all.
+ */
+export function Testimonials({ items }: { items: TestimonialItem[] }) {
+  if (items.length === 0) return null;
   return (
     <section className="reveal py-16 sm:py-24">
       <Container>
@@ -38,15 +20,17 @@ export function Testimonials() {
           </h2>
         </div>
 
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {TESTIMONIALS.map((t) => (
-            <figure key={t.name} className="ve-card flex flex-col rounded-2xl p-7">
+        <div
+          className={`mt-12 grid gap-6 ${items.length === 1 ? "max-w-2xl" : items.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"}`}
+        >
+          {items.map((t, i) => (
+            <figure key={i} className="ve-card flex flex-col rounded-2xl p-7">
               <blockquote className="font-serif text-lg leading-relaxed text-ink">
                 &ldquo;{t.quote}&rdquo;
               </blockquote>
               <figcaption className="mt-5 text-sm">
                 <span className="font-medium text-ink">{t.name}</span>
-                <span className="text-muted"> · {t.location}</span>
+                {t.area && <span className="text-muted"> · {t.area}</span>}
               </figcaption>
             </figure>
           ))}

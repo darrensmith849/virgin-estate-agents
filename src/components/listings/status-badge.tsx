@@ -6,6 +6,7 @@ const MAP: Record<string, { label: string; className: string }> = {
   for_sale: { label: "For Sale", className: "bg-brand-50 text-brand" },
   under_offer: { label: "Under Offer", className: "bg-amber-50 text-amber" },
   sold: { label: "Sold", className: "bg-ink text-paper" },
+  rented: { label: "Rented", className: "bg-ink text-paper" },
 };
 
 export function StatusBadge({
@@ -14,7 +15,7 @@ export function StatusBadge({
   className,
 }: {
   status: string;
-  /** "rent" words it as To Rent / Let. */
+  /** "rent" words an available listing as To Rent. */
   kind?: string | null;
   className?: string;
 }) {

@@ -3,10 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useOptimistic, useState, useTransition } from "react";
-import { ExternalLink, ImageOff, Loader2, Pencil, RotateCcw } from "lucide-react";
+import { BadgeCheck, ExternalLink, ImageOff, KeyRound, Loader2, Pencil, RotateCcw } from "lucide-react";
 
 import { deleteListing, relistListing } from "@/lib/actions/listings";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
+import { EmptyState } from "@/components/admin/empty-state";
 import { LISTING_BIN_DAYS } from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 
@@ -28,7 +29,7 @@ export type SoldRow = {
  * back on the market (for when a deal falls through) or moved to the recycle
  * bin.
  */
-export function SoldList({ rows, kind }: { rows: SoldRow[]; kind: "sale" | "rent" }) {
+export function SoldList({ rows, status }: { rows: SoldRow[]; status: "sold" | "rented" }) {
   const [items, setItems] = useOptimistic(rows, (_prev: SoldRow[], next: SoldRow[]) => next);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, start] = useTransition();
@@ -59,14 +60,13 @@ export function SoldList({ rows, kind }: { rows: SoldRow[]; kind: "sale" | "rent
       )}
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-card p-12 text-center">
-          <p className="text-ink">Nothing marked {kind === "rent" ? "Rented" : "Sold"} right now.</p>
-          <p className="mt-1 text-sm text-muted">
-            When a {kind === "rent" ? "rental" : "listing"}&rsquo;s status is set to{" "}
-            {kind === "rent" ? "Rented" : "Sold"} it moves here from the Listings page, with its
-            reference number.
-          </p>
-        </div>
+        <EmptyState
+          icon={status === "rented" ? KeyRound : BadgeCheck}
+          title={`Nothing marked ${status === "rented" ? "Rented" : "Sold"} right now`}
+        >
+          When a listing&rsquo;s status is set to {status === "rented" ? "Rented" : "Sold"} it
+          moves here from the Listings page, with its reference number.
+        </EmptyState>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line">
           {items.map((row) => (
