@@ -13,7 +13,12 @@ import type { ParsedSpecs } from "@/lib/spec-parser";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { HARARE_SUBURBS, LISTING_STATUSES, statusLabel, type SpecLabelKey } from "@/lib/constants";
-import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
+import {
+  PROPERTY_CATEGORIES,
+  formatPropertyType,
+  propertyCategory,
+  type Vocabulary,
+} from "@/lib/vocabulary";
 
 type Props = {
   action: (state: ListingFormState, formData: FormData) => Promise<ListingFormState>;
@@ -341,6 +346,11 @@ export function ListingForm({
     );
   }
   const [kind, setKind] = useState<string>(listing?.kind ?? "sale");
+  /** Chosen website category; "" = worked out from the property type. */
+  const [category, setCategory] = useState<string>(listing?.category ?? "");
+  const [typeText, setTypeText] = useState<string>(formatPropertyType(listing?.propertyType) || "");
+  const autoCategory =
+    PROPERTY_CATEGORIES.find((c) => c.key === propertyCategory(typeText))?.label ?? "Residential";
   const [status, setStatus] = useState<string>(listing?.status ?? "draft");
   const isRent = kind === "rent";
 
@@ -368,7 +378,7 @@ export function ListingForm({
               required
             />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field
               label="Status"
               htmlFor="status"
@@ -416,6 +426,7 @@ export function ListingForm({
                 list="propertyTypeOptions"
                 autoComplete="off"
                 defaultValue={formatPropertyType(listing?.propertyType) || ""}
+                onChange={(e) => setTypeText(e.target.value)}
                 placeholder="House, Apartment, Warehouse…"
               />
               <datalist id="propertyTypeOptions">
@@ -423,6 +434,30 @@ export function ListingForm({
                   <option key={t} value={t} />
                 ))}
               </datalist>
+            </Field>
+            <Field
+              label="Category"
+              htmlFor="category"
+              error={fe.category?.[0]}
+              hint={
+                category
+                  ? "Grouped under this on the website."
+                  : `Worked out from the property type: ${autoCategory}.`
+              }
+            >
+              <Select
+                id="category"
+                name="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">Automatic ({autoCategory})</option>
+                {PROPERTY_CATEGORIES.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
           <Field label="Description" htmlFor="description">

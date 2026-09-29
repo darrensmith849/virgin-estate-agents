@@ -39,14 +39,18 @@ export type PublicListingFilters = {
 const PUBLIC_STATUSES = ["for_sale", "under_offer", "sold"] as const;
 
 /**
- * Residential, then commercial, then land — the same rule as
- * propertyCategory() in lib/vocabulary.ts, so a category never splits across
- * pages. \y is a word boundary in Postgres regexes.
+ * Residential, commercial, industrial, then land: the category chosen on the
+ * listing, else the same rule as propertyCategory() in lib/vocabulary.ts, so a
+ * category never splits across pages. \y is a word boundary in Postgres regexes.
  */
-const CATEGORY_ORDER_SQL = sql`CASE
-  WHEN ${listings.propertyType} ~* '\\y(land|stand|plot|erf|farm|smallholding|acreage)s?\\y' THEN 3
-  WHEN ${listings.propertyType} ~* '\\y(commercial|office|retail|industrial|warehouse|shop|factory|business|hotel|lodge)s?\\y' THEN 2
-  ELSE 1 END`;
+const CATEGORY_ORDER_SQL = sql`CASE ${listings.category}
+  WHEN 'residential' THEN 1 WHEN 'commercial' THEN 2 WHEN 'industrial' THEN 3 WHEN 'land' THEN 4
+  ELSE CASE
+    WHEN ${listings.propertyType} ~* '\\y(land|stand|plot|erf|farm|smallholding|acreage)s?\\y' THEN 4
+    WHEN ${listings.propertyType} ~* '\\y(industrial|warehouse|factory|factories|workshop|depot)s?\\y' THEN 3
+    WHEN ${listings.propertyType} ~* '\\y(commercial|office|retail|shop|business|hotel|lodge)s?\\y' THEN 2
+    ELSE 1 END
+  END`;
 
 /** Listings in the recycle bin are hidden from every read except the bin's. */
 const notDeleted = isNull(listings.deletedAt);
@@ -125,6 +129,43 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
     },
     { items: [], total: 0, page, perPage, pageCount: 1 },
   );
+}
+
+/**
+ * Areas where the agency has at least `min` properties on the site (sold ones
+ * count — they show the agency knows the area), busiest first. Each comes with
+ * a photo from one of its own listings there, never a stock image.
+ */
+export async function listAreasWithPhotos(min = 2) {
+  return safeRead(async () => {
+    const rows = await db.query.listings.findMany({
+      where: and(inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted),
+      // Featured listings first, so their photo represents the area.
+      orderBy: [desc(listings.isFeatured), asc(listings.featuredOrder), desc(listings.publishedAt)],
+      columns: { suburb: true, title: true },
+      with: {
+        images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)], limit: 1 },
+      },
+    });
+    const areas = new Map<
+      string,
+      { name: string; count: number; photo: { url: string; alt: string } | null }
+    >();
+    for (const row of rows) {
+      // Grouped by the exact stored name, which is what the listings page's
+      // suburb filter matches on.
+      const name = row.suburb;
+      if (!name?.trim()) continue;
+      const area = areas.get(name) ?? { name, count: 0, photo: null };
+      area.count++;
+      const image = row.images[0];
+      if (!area.photo && image) area.photo = { url: image.url, alt: image.alt ?? row.title };
+      areas.set(name, area);
+    }
+    return [...areas.values()]
+      .filter((a) => a.count >= min && a.photo)
+      .sort((a, b) => b.count - a.count);
+  }, []);
 }
 
 /** Featured listings for the homepage. */

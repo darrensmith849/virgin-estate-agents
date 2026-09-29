@@ -115,28 +115,44 @@ export function samePropertyType(a: string, b: string): boolean {
 /*  Broad categories for the public listings page                      */
 /* ------------------------------------------------------------------ */
 
-export type PropertyCategory = "residential" | "commercial" | "land";
+export type PropertyCategory = "residential" | "commercial" | "industrial" | "land";
 
 export const PROPERTY_CATEGORIES: { key: PropertyCategory; label: string }[] = [
   { key: "residential", label: "Residential" },
   { key: "commercial", label: "Commercial" },
+  { key: "industrial", label: "Industrial" },
   { key: "land", label: "Land" },
 ];
 
 /*
  * The agency types property types freely ("Townhouse / Cluster Home",
- * "Commercial / residential Land"), so the category is read from the words in
- * it: anything naming land comes first, then anything commercial, and the rest
- * is residential. Keep in step with CATEGORY_ORDER_SQL in lib/data/listings.ts,
+ * "Commercial / residential Land"), so unless a category is chosen on the
+ * listing it's read from the words in the type: anything naming land comes
+ * first, then anything industrial, then commercial, and the rest is
+ * residential. Keep in step with CATEGORY_ORDER_SQL in lib/data/listings.ts,
  * which sorts the same way in the database.
  */
 const LAND_WORDS = /\b(land|stand|plot|erf|farm|smallholding|acreage)s?\b/i;
+const INDUSTRIAL_WORDS = /\b(industrial|warehouse|factory|factories|workshop|depot)s?\b/i;
 const COMMERCIAL_WORDS =
-  /\b(commercial|office|retail|industrial|warehouse|shop|factory|business|hotel|lodge)s?\b/i;
+  /\b(commercial|office|retail|shop|business|hotel|lodge)s?\b/i;
 
 export function propertyCategory(type: string | null | undefined): PropertyCategory {
   const label = formatPropertyType(type);
   if (LAND_WORDS.test(label)) return "land";
+  if (INDUSTRIAL_WORDS.test(label)) return "industrial";
   if (COMMERCIAL_WORDS.test(label)) return "commercial";
   return "residential";
+}
+
+export function isPropertyCategory(value: unknown): value is PropertyCategory {
+  return PROPERTY_CATEGORIES.some((c) => c.key === value);
+}
+
+/** The category a listing is shown under: the one chosen, else from its type. */
+export function listingCategory(listing: {
+  category?: string | null;
+  propertyType: string | null | undefined;
+}): PropertyCategory {
+  return isPropertyCategory(listing.category) ? listing.category : propertyCategory(listing.propertyType);
 }

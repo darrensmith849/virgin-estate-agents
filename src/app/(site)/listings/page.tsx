@@ -8,7 +8,7 @@ import { ListingsFilters } from "@/components/listings/listings-filters";
 import { ListingsMap } from "@/components/listings/listings-map";
 import { listPropertyTypesInUse, listPublicListings } from "@/lib/data/listings";
 import { getAgencySettings } from "@/lib/data/settings";
-import { PROPERTY_CATEGORIES, propertyCategory, resolveVocabulary } from "@/lib/vocabulary";
+import { PROPERTY_CATEGORIES, listingCategory, resolveVocabulary } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -123,7 +123,7 @@ export default async function ListingsPage({
                   rows,
                   categories: PROPERTY_CATEGORIES.map((c) => ({
                     ...c,
-                    rows: rows.filter((l) => propertyCategory(l.propertyType) === c.key),
+                    rows: rows.filter((l) => listingCategory(l) === c.key),
                   })).filter((c) => c.rows.length > 0),
                 };
               })
