@@ -6,6 +6,10 @@ import { buttonVariants } from "@/components/ui/button";
 import AboutGalleryScroll from "@/components/AboutGalleryScroll";
 import { SITE } from "@/lib/constants";
 
+// Rendered on request: its footer shows the contact details from Settings,
+// and a pre-built copy would be cached for a year.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "About",
   description: `About ${SITE.name} — a considered approach to property in Zimbabwe.`,
