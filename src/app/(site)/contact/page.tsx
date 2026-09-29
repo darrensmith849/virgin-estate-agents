@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MapPin, Mail, MessageCircle, Clock, ArrowRight } from "lucide-react";
+import { MapPin, Mail, Clock, ArrowUpRight } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
 import { WhatsappIcon } from "@/components/site/whatsapp-icon";
@@ -20,10 +20,87 @@ export const metadata: Metadata = {
 // 1-year static cache); the page no longer depends on the database.
 export const dynamic = "force-dynamic";
 
-/** Shared by every click cue in the contact list — the email arrows and the
- *  WhatsApp buttons are the same kind of action, so they get the same chip. */
-const CUE =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand/40 bg-sand/10 text-sand transition-colors group-hover:border-brand group-hover:bg-brand group-hover:text-white";
+type Person = {
+  name: string;
+  role: string;
+  whatsapp: string;
+  whatsappHref: string | null;
+  email: string;
+  /** mailto: with the other agent copied in, so a reply reaches both. */
+  mailto: string;
+};
+
+/*
+ * One card per person: who they are, then a WhatsApp row and an email row.
+ * Every row is the full width of the card, so the icons, the numbers and the
+ * arrows all line up — whatever the length of the address or number.
+ */
+function PersonCard({ person }: { person: Person }) {
+  const initials = person.name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const row =
+    "group -mx-2 flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-paper-2";
+  const chip =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sand/10 text-sand transition-colors group-hover:bg-brand group-hover:text-white";
+  return (
+    <div className="rounded-2xl border border-line bg-card p-5">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 font-serif text-base text-brand"
+        >
+          {initials}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-medium text-ink">{person.name}</p>
+          <p className="text-xs text-muted">{person.role}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-1 border-t border-line pt-3 lg:grid-cols-2 lg:gap-x-4">
+        {person.whatsappHref && (
+          <a
+            href={person.whatsappHref}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Message ${person.name} on WhatsApp`}
+            className={row}
+          >
+            <span className={chip}>
+              <WhatsappIcon size={16} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-xs text-muted">WhatsApp</span>
+              <span className="block truncate text-sm text-ink">{person.whatsapp}</span>
+            </span>
+            <ArrowUpRight
+              size={16}
+              aria-hidden
+              className="ml-auto shrink-0 text-muted transition-colors group-hover:text-brand"
+            />
+          </a>
+        )}
+        <a href={person.mailto} aria-label={`Email ${person.name}`} className={row}>
+          <span className={chip}>
+            <Mail size={16} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs text-muted">Email</span>
+            <span className="block truncate text-sm text-ink">{person.email}</span>
+          </span>
+          <ArrowUpRight
+            size={16}
+            aria-hidden
+            className="ml-auto shrink-0 text-muted transition-colors group-hover:text-brand"
+          />
+        </a>
+      </div>
+    </div>
+  );
+}
 
 export default async function ContactPage() {
   // From Settings → Agency details (brought in line with the site's details
@@ -34,11 +111,30 @@ export default async function ContactPage() {
   const whatsappNumber = contact.whatsapp;
   const wa = whatsappLink(whatsappNumber);
 
-  // Secondary contact — Kevin Higgins (Property Consultant), shown under Boyd.
+  // Secondary contact — Kevin Higgins (Property Consultant), shown beside Boyd.
   const kevinName = "Kevin Higgins";
   const kevinEmail = "kevinh@ccsales.co.zw";
   const kevinPhone = "+263 712 602 565";
   const kevinWa = whatsappLink(kevinPhone);
+
+  const people: Person[] = [
+    {
+      name: SITE.contactName,
+      role: "Manager",
+      whatsapp: whatsappNumber,
+      whatsappHref: wa,
+      email,
+      mailto: `mailto:${email}?cc=${kevinEmail}`,
+    },
+    {
+      name: kevinName,
+      role: "Property Consultant",
+      whatsapp: kevinPhone,
+      whatsappHref: kevinWa,
+      email: kevinEmail,
+      mailto: `mailto:${kevinEmail}?cc=${email}`,
+    },
+  ];
 
   return (
     <Container className="py-14 sm:py-20">
@@ -53,7 +149,16 @@ export default async function ContactPage() {
             help. Reach out and a member of our team will get back to you.
           </p>
 
-          <ul className="mt-10 space-y-5">
+          {/* Who to speak to — each with WhatsApp and email. */}
+          {/* Side by side on tablets; stacked beside the form on desktop, where
+              each card is wide enough for its two actions side by side. */}
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            {people.map((person) => (
+              <PersonCard key={person.email} person={person} />
+            ))}
+          </div>
+
+          <ul className="mt-8 space-y-5">
             <li className="flex items-start gap-3">
               <MapPin className="mt-0.5 shrink-0 text-sand" size={18} />
               <a
@@ -70,86 +175,6 @@ export default async function ContactPage() {
                 </span>
               </a>
             </li>
-            <li className="flex items-start gap-3">
-              <Mail className="mt-0.5 shrink-0 text-sand" size={18} />
-              {/* Each email opens a pre-addressed draft with the other agent
-                  CC'd, so a reply reaches both. The arrow is the click cue. */}
-              <div className="flex flex-col gap-2.5">
-                <a
-                  href={`mailto:${email}?cc=${kevinEmail}`}
-                  aria-label={`Email ${email} (copies in ${kevinName})`}
-                  className="group inline-flex items-center gap-2.5 text-ink-soft hover:text-ink"
-                >
-                  <span>{email}</span>
-                  <span
-                    aria-hidden="true"
-                    className={CUE}
-                  >
-                    <ArrowRight size={14} />
-                  </span>
-                </a>
-                <a
-                  href={`mailto:${kevinEmail}?cc=${email}`}
-                  aria-label={`Email ${kevinEmail} (copies in ${SITE.contactName})`}
-                  className="group inline-flex items-center gap-2.5 text-ink-soft hover:text-ink"
-                >
-                  <span>{kevinEmail}</span>
-                  <span
-                    aria-hidden="true"
-                    className={CUE}
-                  >
-                    <ArrowRight size={14} />
-                  </span>
-                </a>
-              </div>
-            </li>
-            {wa && (
-              <li className="flex items-start gap-3">
-                <MessageCircle className="mt-0.5 shrink-0 text-sand" size={18} />
-                {/* Each contact is a WhatsApp link; the button is the click
-                    cue, sharing CUE with the email arrows above. */}
-                <div className="flex flex-col gap-4">
-                  <a
-                    href={wa}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Message ${SITE.contactName} on WhatsApp`}
-                    className="group inline-flex items-center gap-3 text-ink-soft hover:text-ink"
-                  >
-                    <span className="flex flex-col">
-                      <span className="font-medium text-ink">{SITE.contactName}</span>
-                      <span className="text-muted group-hover:text-ink">{whatsappNumber}</span>
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className={CUE}
-                    >
-                      <WhatsappIcon size={14} />
-                    </span>
-                  </a>
-                  {kevinWa && (
-                    <a
-                      href={kevinWa}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`Message ${kevinName} on WhatsApp`}
-                      className="group inline-flex items-center gap-3 text-ink-soft hover:text-ink"
-                    >
-                      <span className="flex flex-col">
-                        <span className="font-medium text-ink">{kevinName}</span>
-                        <span className="text-muted group-hover:text-ink">{kevinPhone}</span>
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className={CUE}
-                      >
-                        <WhatsappIcon size={14} />
-                      </span>
-                    </a>
-                  )}
-                </div>
-              </li>
-            )}
             <li className="flex items-start gap-3">
               <Clock className="mt-0.5 shrink-0 text-sand" size={18} />
               <span className="text-ink-soft">{SITE.hours}</span>
