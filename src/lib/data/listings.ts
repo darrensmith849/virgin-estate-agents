@@ -257,15 +257,72 @@ export async function getSimilarListings(
 /* ----------------------------- Admin reads ------------------------------- */
 
 /** All listings for the admin table (includes drafts, not the recycle bin). */
+/** Everything the admin listings board shows: one cover photo each. */
 export async function listAdminListings() {
   return db.query.listings.findMany({
     where: notDeleted,
     orderBy: [desc(listings.updatedAt)],
+    columns: {
+      id: true,
+      slug: true,
+      refNumber: true,
+      title: true,
+      suburb: true,
+      kind: true,
+      rentPeriod: true,
+      price: true,
+      status: true,
+      isFeatured: true,
+      featuredOrder: true,
+      publishedAt: true,
+      updatedAt: true,
+    },
     with: {
-      agent: true,
-      images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+      agent: { columns: { name: true } },
+      images: {
+        orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)],
+        limit: 1,
+        columns: { url: true, alt: true, isCover: true },
+      },
     },
   });
+}
+
+/** The Sold tab: sold listings in reference order, with a cover photo. */
+export async function listSoldListings() {
+  return db.query.listings.findMany({
+    where: and(eq(listings.status, "sold"), notDeleted),
+    orderBy: [asc(listings.refNumber), asc(listings.publishedAt)],
+    columns: {
+      id: true,
+      slug: true,
+      refNumber: true,
+      title: true,
+      suburb: true,
+      kind: true,
+      rentPeriod: true,
+      price: true,
+      soldAt: true,
+    },
+    with: {
+      images: {
+        orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)],
+        limit: 1,
+        columns: { url: true, alt: true },
+      },
+    },
+  });
+}
+
+/** How many listings are marked Sold, for the admin sidebar. */
+export async function countSoldListings(): Promise<number> {
+  return safeRead(async () => {
+    const [row] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(listings)
+      .where(and(eq(listings.status, "sold"), notDeleted));
+    return row?.c ?? 0;
+  }, 0);
 }
 
 export async function getListingById(id: string) {

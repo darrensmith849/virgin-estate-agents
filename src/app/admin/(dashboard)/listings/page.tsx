@@ -10,9 +10,9 @@ import { buttonVariants } from "@/components/ui/button";
 export const metadata = { title: "Listings" };
 
 export default async function AdminListingsPage() {
-  // Clear out anything that has been in the recycle bin past its 30 days.
-  await purgeExpiredListings();
-  const items = await listAdminListings();
+  // Clear out anything that has been in the recycle bin past its 30 days —
+  // alongside the read, since binned listings aren't on the board anyway.
+  const [, items] = await Promise.all([purgeExpiredListings(), listAdminListings()]);
   // Sold listings move to the Sold list on the dashboard.
   const sold = items.filter((l) => l.status === "sold").length;
   const time = (d: Date | null) => (d ? new Date(d).getTime() : 0);
@@ -83,8 +83,8 @@ export default async function AdminListingsPage() {
           <ListingBoard listings={board} />
           <p className="mt-6 text-sm text-muted">
             Sold properties move to the{" "}
-            <Link href="/admin#sold" className="text-brand hover:underline">
-              Sold list on the Dashboard
+            <Link href="/admin/sold" className="text-brand hover:underline">
+              Sold tab
             </Link>
             {sold > 0 ? ` (${sold} so far)` : ""}, and stay on the website marked SOLD.
           </p>

@@ -59,6 +59,8 @@ type Handlers = {
   move: (id: string, zone: "featured" | "rest", beforeId?: string) => void;
   nudge: (id: string, direction: -1 | 1) => void;
   start: (fn: () => void) => void;
+  /** Mark a listing Sold: it leaves the board for the Sold tab. */
+  markSold: (listing: BoardListing) => void;
   setOverZone: (fn: (z: "featured" | "rest" | null) => "featured" | "rest" | null) => void;
 };
 
@@ -154,7 +156,11 @@ function Card({
 
       <select
         value={listing.status}
-        onChange={(e) => h.start(() => void setListingStatus(listing.id, e.target.value))}
+        onChange={(e) =>
+          e.target.value === "sold"
+            ? h.markSold(listing)
+            : h.start(() => void setListingStatus(listing.id, e.target.value))
+        }
         aria-label={`Status of ${listing.title}`}
         className="rounded-full border border-line bg-paper-2 px-2.5 py-1 text-xs text-ink"
       >
@@ -248,6 +254,16 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
   );
   const dragId = useRef<string | null>(null);
   const [overZone, setOverZone] = useState<"featured" | "rest" | null>(null);
+  /** Says where a listing marked Sold went, rather than it just vanishing. */
+  const [soldNotice, setSoldNotice] = useState<string | null>(null);
+
+  function markSold(listing: BoardListing) {
+    setSoldNotice(listing.title);
+    start(() => {
+      setItems(items.filter((l) => l.id !== listing.id));
+      void setListingStatus(listing.id, "sold");
+    });
+  }
 
   const featured = items.filter((l) => l.isFeatured);
   const rest = items.filter((l) => !l.isFeatured);
@@ -297,11 +313,23 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
     move,
     nudge,
     start,
+    markSold,
     setOverZone,
   };
 
   return (
     <div className="space-y-8">
+      {soldNotice && (
+        <p
+          role="status"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] bg-brand-50 px-4 py-3 text-sm text-brand"
+        >
+          “{soldNotice}” is marked Sold and has moved to the Sold tab.
+          <Link href="/admin/sold" className="font-medium underline underline-offset-2">
+            Open Sold
+          </Link>
+        </p>
+      )}
       <section>
         <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="flex items-center gap-2 text-lg">

@@ -385,7 +385,9 @@ export function ListingForm({
               hint={
                 status === "draft"
                   ? "Draft — hidden from the website until published."
-                  : "Live on the public website."
+                  : status === "sold"
+                    ? `On the Sold tab, and shown on the website marked ${kind === "rent" ? "LET" : "SOLD"}. Change it back to put it on the market.`
+                    : "Live on the public website."
               }
             >
               <Select

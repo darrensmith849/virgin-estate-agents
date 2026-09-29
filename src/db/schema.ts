@@ -128,6 +128,8 @@ export const listings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** When it was marked Sold; cleared if it goes back on the market. */
+    soldAt: timestamp("sold_at", { withTimezone: true }),
     /** Set when the listing is moved to the recycle bin. Hidden everywhere
      *  while set; restorable for 30 days, then permanently deleted. */
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

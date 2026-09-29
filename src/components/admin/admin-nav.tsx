@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   Trash2,
+  BadgeCheck,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true, badge: false },
   { href: "/admin/listings", label: "Listings", icon: Home, exact: false, badge: false },
+  { href: "/admin/sold", label: "Sold", icon: BadgeCheck, exact: false, badge: false },
   { href: "/admin/enquiries", label: "Enquiries", icon: Inbox, exact: false, badge: true },
   { href: "/admin/agents", label: "Agents", icon: Users, exact: false, badge: false },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, exact: false, badge: false },
@@ -27,8 +29,11 @@ const LINKS = [
 export function AdminNav({
   newEnquiries,
   binCount = 0,
+  soldCount = 0,
 }: {
   newEnquiries: number;
+  /** Listings marked Sold — shown as a quiet count on the Sold tab. */
+  soldCount?: number;
   /** Listings currently in the recycle bin — shown as a quiet count. */
   binCount?: number;
 }) {
@@ -64,16 +69,17 @@ export function AdminNav({
                   {newEnquiries}
                 </span>
               )}
-              {href === "/admin/recycle-bin" && binCount > 0 && (
-                <span
-                  className={cn(
-                    "ml-auto rounded-full px-2 py-0.5 text-xs",
-                    active ? "bg-white/20 text-white" : "bg-paper-2 text-muted",
-                  )}
-                >
-                  {binCount}
-                </span>
-              )}
+              {(href === "/admin/recycle-bin" || href === "/admin/sold") &&
+                (href === "/admin/sold" ? soldCount : binCount) > 0 && (
+                  <span
+                    className={cn(
+                      "ml-auto rounded-full px-2 py-0.5 text-xs",
+                      active ? "bg-white/20 text-white" : "bg-paper-2 text-muted",
+                    )}
+                  >
+                    {href === "/admin/sold" ? soldCount : binCount}
+                  </span>
+                )}
             </Link>
           );
         })}

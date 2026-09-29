@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { enquiries, listings, pageViews } from "@/db/schema";
@@ -7,7 +7,7 @@ import { enquiries, listings, pageViews } from "@/db/schema";
 export async function getDashboardStats() {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [active, drafts, newEnq, viewsWeek, recentEnquiries, recentListings, sold] =
+  const [active, drafts, newEnq, viewsWeek, recentEnquiries, recentListings, sold, soldTotal] =
     await Promise.all([
       db
         .select({ c: sql<number>`count(*)::int` })
@@ -45,11 +45,11 @@ export async function getDashboardStats() {
           refNumber: true,
         },
       }),
-      // Sold properties leave the listings board and are kept here, in
-      // reference order.
+      // The most recent sales; the Sold tab has them all.
       db.query.listings.findMany({
         where: and(eq(listings.status, "sold"), isNull(listings.deletedAt)),
-        orderBy: [asc(listings.refNumber), asc(listings.publishedAt)],
+        orderBy: [sql`${listings.soldAt} desc nulls last`, desc(listings.refNumber)],
+        limit: 5,
         columns: {
           id: true,
           title: true,
@@ -58,8 +58,13 @@ export async function getDashboardStats() {
           kind: true,
           rentPeriod: true,
           refNumber: true,
+          soldAt: true,
         },
       }),
+      db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(listings)
+        .where(and(eq(listings.status, "sold"), isNull(listings.deletedAt))),
     ]);
 
   return {
@@ -70,5 +75,6 @@ export async function getDashboardStats() {
     recentEnquiries,
     recentListings,
     sold,
+    soldCount: soldTotal[0]?.c ?? 0,
   };
 }

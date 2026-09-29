@@ -74,20 +74,26 @@ export async function createListing(
       publishedAt: data.status === "draft" ? null : new Date(),
     })
     .returning({ id: listings.id });
-  await assignRefNumber(created.id);
+  await afterStatusChange(created.id);
 
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
+  revalidatePath("/admin/sold");
   revalidatePath("/"); // home featured grid is static
-  redirect("/admin/listings");
+  // A sold listing lives on the Sold tab, not the listings board.
+  redirect(data.status === "sold" ? "/admin/sold" : "/admin/listings");
 }
 
 /**
- * Give a listing its reference number the first time it goes live: the next
- * in order (VE-008 after VE-007), never reused. Drafts get none, so abandoned
- * drafts leave no gaps. Never blocks a save — a failure is only logged.
+ * Bookkeeping after any change of status, done in the database so every path
+ * (form, board, publish toggle) behaves the same. Never blocks a save — a
+ * failure is only logged.
+ *  - The first time a listing goes live it gets its reference number: the
+ *    next in order (VE-008 after VE-007), never reused. Drafts get none, so
+ *    abandoned drafts leave no gaps.
+ *  - Marking it Sold records when; going back on the market clears that.
  */
-async function assignRefNumber(id: string): Promise<void> {
+async function afterStatusChange(id: string): Promise<void> {
   try {
     await db.execute(sql`
       UPDATE listings SET ref_number = nextval('listing_ref_seq')
@@ -95,6 +101,15 @@ async function assignRefNumber(id: string): Promise<void> {
     `);
   } catch (err) {
     console.error("[ref] couldn't give the listing a reference number:", err);
+  }
+  try {
+    await db.execute(sql`
+      UPDATE listings
+      SET sold_at = CASE WHEN status = 'sold' THEN coalesce(sold_at, now()) ELSE NULL END
+      WHERE id = ${id}
+    `);
+  } catch (err) {
+    console.error("[sold] couldn't record the sold date:", err);
   }
 }
 
@@ -179,14 +194,17 @@ export async function updateListing(
     .update(listings)
     .set({ ...data, ...cleared, ...slug, publishedAt, updatedAt: new Date() })
     .where(eq(listings.id, id));
-  await assignRefNumber(id);
+  await afterStatusChange(id);
 
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
+  revalidatePath("/admin/sold");
   revalidatePath(`/admin/listings/${id}/edit`);
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");
-  redirect("/admin/listings");
+  // A sold listing lives on the Sold tab, not the listings board — sending it
+  // back to the board would look as though it had vanished.
+  redirect(data.status === "sold" ? "/admin/sold" : "/admin/listings");
 }
 
 /**
@@ -209,10 +227,11 @@ export async function setListingPublished(
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id));
-  await assignRefNumber(id);
+  await afterStatusChange(id);
 
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
+  revalidatePath("/admin/sold");
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");
 }
@@ -270,12 +289,31 @@ export async function setListingStatus(id: string, status: string): Promise<void
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id));
-  await assignRefNumber(id);
+  await afterStatusChange(id);
 
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
+  revalidatePath("/admin/sold");
   revalidatePath("/");
   revalidatePath("/listings");
+  revalidatePath("/listings/[slug]", "page");
+}
+
+/**
+ * Put a sold listing back on the market — for when a sale falls through. It
+ * returns to the listings board as For Sale (To Rent for a rental), keeping
+ * its reference number.
+ */
+export async function relistListing(id: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  await db
+    .update(listings)
+    .set({ status: "for_sale", updatedAt: new Date() })
+    .where(and(eq(listings.id, id), eq(listings.status, "sold")));
+  await afterStatusChange(id);
+  revalidateListingPages();
 }
 
 /**
@@ -358,7 +396,9 @@ async function hardDeleteListing(id: string): Promise<void> {
 }
 
 function revalidateListingPages() {
+  revalidatePath("/admin");
   revalidatePath("/admin/listings");
+  revalidatePath("/admin/sold");
   revalidatePath("/admin/recycle-bin");
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");

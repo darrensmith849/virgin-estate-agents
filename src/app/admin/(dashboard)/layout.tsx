@@ -5,7 +5,7 @@ import { ExternalLink, LogOut } from "lucide-react";
 import { requireUser } from "@/lib/auth/dal";
 import { logout } from "@/lib/actions/auth";
 import { countNewEnquiries } from "@/lib/data/enquiries";
-import { countBinnedListings } from "@/lib/data/listings";
+import { countBinnedListings, countSoldListings } from "@/lib/data/listings";
 import { AdminNav } from "@/components/admin/admin-nav";
 
 export const metadata: Metadata = {
@@ -19,9 +19,10 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const [newEnquiries, binCount] = await Promise.all([
+  const [newEnquiries, binCount, soldCount] = await Promise.all([
     countNewEnquiries(),
     countBinnedListings(),
+    countSoldListings(),
   ]);
 
   const initials =
@@ -63,7 +64,7 @@ export default async function AdminLayout({
             </form>
           </div>
         </div>
-        <AdminNav newEnquiries={newEnquiries} binCount={binCount} />
+        <AdminNav newEnquiries={newEnquiries} binCount={binCount} soldCount={soldCount} />
       </aside>
 
       <div className="min-w-0">

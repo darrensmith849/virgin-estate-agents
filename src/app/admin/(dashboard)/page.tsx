@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, Inbox, FileEdit, Eye, ArrowRight, Plus } from "lucide-react";
+import { Home, Inbox, FileEdit, Eye, ArrowRight, Plus, ChevronRight } from "lucide-react";
 
 import { getDashboardStats } from "@/lib/data/dashboard";
 import { getCurrentUser } from "@/lib/auth/dal";
@@ -120,28 +120,31 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      {/* Sold: taken off the listings board, kept here with the reference. */}
+      {/* Recently sold — the Sold tab has them all, with their actions. */}
       <section id="sold" className="mt-6 min-w-0 scroll-mt-20 rounded-xl border border-line bg-card">
-        <div className="flex items-baseline justify-between gap-3 border-b border-line px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
           <h2 className="text-base font-medium text-ink">
-            Sold <span className="font-normal text-muted">({stats.sold.length})</span>
+            Recently sold <span className="font-normal text-muted">({stats.soldCount})</span>
           </h2>
-          <p className="hidden text-xs text-muted sm:block">
-            Still on the website, marked SOLD. Open one to change its status back.
-          </p>
+          <Link
+            href="/admin/sold"
+            className="flex items-center gap-1 text-sm text-brand hover:underline"
+          >
+            View all <ArrowRight size={14} />
+          </Link>
         </div>
         <ul className="divide-y divide-line">
           {stats.sold.length === 0 && (
             <li className="px-5 py-6 text-sm text-muted">
-              Nothing sold yet. When a listing is marked Sold it moves here from the Listings page,
-              with its reference number.
+              Nothing sold yet. When a listing is marked Sold it moves to the Sold tab, with its
+              reference number.
             </li>
           )}
           {stats.sold.map((l) => (
             <li key={l.id}>
               <Link
                 href={`/admin/listings/${l.id}/edit`}
-                className="flex items-center gap-4 px-5 py-3.5 hover:bg-paper-2"
+                className="group flex items-center gap-4 px-5 py-3.5 hover:bg-paper-2"
               >
                 <span className="w-16 shrink-0 text-sm font-medium tabular-nums text-brand">
                   {formatRef(l.refNumber) ?? "—"}
@@ -149,12 +152,17 @@ export default async function DashboardPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-ink">{l.title}</p>
                   <p className="truncate text-xs text-muted">
-                    {[l.suburb, formatPrice(l.price, { kind: l.kind, period: l.rentPeriod })]
+                    {[
+                      l.suburb,
+                      formatPrice(l.price, { kind: l.kind, period: l.rentPeriod }),
+                      l.soldAt ? `${l.kind === "rent" ? "let" : "sold"} ${timeAgo(l.soldAt)}` : null,
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
                 </div>
                 <StatusBadge status="sold" kind={l.kind} />
+                <ChevronRight size={16} className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
               </Link>
             </li>
           ))}
