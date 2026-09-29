@@ -15,7 +15,13 @@ import {
 
 import { setFeaturedOrder, setListingStatus, deleteListing } from "@/lib/actions/listings";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import { LISTING_BIN_DAYS, LISTING_STATUSES, formatRef, statusLabel } from "@/lib/constants";
+import {
+  LISTING_BIN_DAYS,
+  formatRef,
+  fromStatusChoice,
+  statusChoice,
+  statusChoices,
+} from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -59,8 +65,8 @@ type Handlers = {
   move: (id: string, zone: "featured" | "rest", beforeId?: string) => void;
   nudge: (id: string, direction: -1 | 1) => void;
   start: (fn: () => void) => void;
-  /** Mark a listing Sold: it leaves the board for the Sold tab. */
-  markSold: (listing: BoardListing) => void;
+  /** Mark a listing Sold or Rented: it leaves the board for that tab. */
+  markSold: (listing: BoardListing, kind: "sale" | "rent") => void;
   setOverZone: (fn: (z: string | null) => string | null) => void;
 };
 
@@ -155,18 +161,18 @@ function Card({
       </span>
 
       <select
-        value={listing.status}
-        onChange={(e) =>
-          e.target.value === "sold"
-            ? h.markSold(listing)
-            : h.start(() => void setListingStatus(listing.id, e.target.value))
-        }
+        value={statusChoice(listing.status, listing.kind)}
+        onChange={(e) => {
+          const choice = fromStatusChoice(e.target.value);
+          if (choice.status === "sold") h.markSold(listing, choice.kind ?? listing.kind);
+          else h.start(() => void setListingStatus(listing.id, choice.status));
+        }}
         aria-label={`Status of ${listing.title}`}
         className="rounded-full border border-line bg-paper-2 px-2.5 py-1 text-xs text-ink"
       >
-        {LISTING_STATUSES.map((s) => (
+        {statusChoices(listing.kind).map((s) => (
           <option key={s.value} value={s.value}>
-            {statusLabel(s.value, listing.kind)}
+            {s.label}
           </option>
         ))}
       </select>
@@ -261,11 +267,23 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
   /** Says where a listing marked Sold / Rented went, rather than it vanishing. */
   const [soldNotice, setSoldNotice] = useState<{ title: string; rent: boolean } | null>(null);
 
-  function markSold(listing: BoardListing) {
-    setSoldNotice({ title: listing.title, rent: listing.kind === "rent" });
+  function markSold(listing: BoardListing, kind: "sale" | "rent") {
+    // Rented on a for-sale listing (or Sold on a rental) changes its type:
+    // check first, since its price then reads as rent (or a sale price).
+    if (
+      kind !== listing.kind &&
+      !window.confirm(
+        kind === "rent"
+          ? `"${listing.title}" is listed For Sale. Mark it Rented? It becomes a rental — check its price is the monthly rent.`
+          : `"${listing.title}" is listed To Rent. Mark it Sold? It becomes a sale — check its price is the sale price.`,
+      )
+    ) {
+      return;
+    }
+    setSoldNotice({ title: listing.title, rent: kind === "rent" });
     start(() => {
       setItems(items.filter((l) => l.id !== listing.id));
-      void setListingStatus(listing.id, "sold");
+      void setListingStatus(listing.id, "sold", kind);
     });
   }
 

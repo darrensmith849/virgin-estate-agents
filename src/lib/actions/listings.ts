@@ -280,18 +280,25 @@ export async function setFeaturedOrder(ids: string[]): Promise<void> {
   revalidatePath("/"); // the featured grid lives on the homepage
 }
 
-/** Set a listing's status directly, for the dropdown on each admin card. */
-export async function setListingStatus(id: string, status: string): Promise<void> {
+/**
+ * Set a listing's status directly, for the dropdown on each admin card. With
+ * `kind`, the listing's type changes too — marking a for-sale listing Rented
+ * makes it a rental (quoted per month unless a period is already set).
+ */
+export async function setListingStatus(id: string, status: string, kind?: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
 
   const allowed = ["draft", "for_sale", "under_offer", "sold"] as const;
   if (!allowed.includes(status as (typeof allowed)[number])) return;
+  const newKind = kind === "sale" || kind === "rent" ? kind : undefined;
 
   await db
     .update(listings)
     .set({
       status: status as (typeof allowed)[number],
+      ...(newKind ? { kind: newKind } : {}),
+      ...(newKind === "rent" ? { rentPeriod: sql`coalesce(${listings.rentPeriod}, 'month')` } : {}),
       // Publishing for the first time should stamp a publish date; going back
       // to draft clears it so the listing isn't ordered as though it were live.
       publishedAt: status === "draft" ? null : sql`coalesce(${listings.publishedAt}, now())`,

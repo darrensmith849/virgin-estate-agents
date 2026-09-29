@@ -12,7 +12,13 @@ import { PasteFeatures } from "@/components/admin/paste-features";
 import type { ParsedSpecs } from "@/lib/spec-parser";
 import { cn } from "@/lib/utils";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
-import { HARARE_SUBURBS, LISTING_STATUSES, statusLabel, type SpecLabelKey } from "@/lib/constants";
+import {
+  HARARE_SUBURBS,
+  fromStatusChoice,
+  statusChoice,
+  statusChoices,
+  type SpecLabelKey,
+} from "@/lib/constants";
 import {
   PROPERTY_CATEGORIES,
   formatPropertyType,
@@ -385,6 +391,10 @@ export function ListingForm({
               hint={
                 status === "draft"
                   ? "Draft — hidden from the website until published."
+                  : status === "sold" && listing && listing.kind !== kind
+                    ? kind === "rent"
+                      ? "Marked Rented, so its type is now To Rent — check the price below is the monthly rent before saving."
+                      : "Marked Sold, so its type is now For Sale — check the price below is the sale price before saving."
                   : status === "sold"
                     ? kind === "rent"
                       ? "On the Rented tab, and shown on the website marked RENTED. Change it back to put it on the market."
@@ -392,15 +402,21 @@ export function ListingForm({
                     : "Live on the public website."
               }
             >
+              {/* Sold and Rented are both offered; each also sets the listing
+                  type (see statusChoices). The stored status is sent below. */}
+              <input type="hidden" name="status" value={status} />
               <Select
                 id="status"
-                name="status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                value={statusChoice(status, kind)}
+                onChange={(e) => {
+                  const choice = fromStatusChoice(e.target.value);
+                  setStatus(choice.status);
+                  if (choice.kind) setKind(choice.kind);
+                }}
               >
-                {LISTING_STATUSES.map((s) => (
+                {statusChoices(kind).map((s) => (
                   <option key={s.value} value={s.value}>
-                    {statusLabel(s.value, kind)}
+                    {s.label}
                   </option>
                 ))}
               </Select>

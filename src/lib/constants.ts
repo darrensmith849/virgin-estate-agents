@@ -82,6 +82,34 @@ export const LISTING_STATUSES = [
   { value: "sold", label: "Sold", tone: "neutral" },
 ] as const;
 
+/*
+ * The status choices offered for a listing. Sold and Rented are both offered
+ * whatever the listing's type: picking the one that doesn't match also
+ * switches the type (a property listed for sale that ends up rented out).
+ * "rented" isn't stored as such — it's status "sold" on a rental.
+ */
+export function statusChoices(kind?: string | null): { value: string; label: string }[] {
+  return [
+    { value: "draft", label: "Draft" },
+    { value: "for_sale", label: kind === "rent" ? "To Rent" : "For Sale" },
+    { value: "under_offer", label: "Under Offer" },
+    { value: "sold", label: "Sold" },
+    { value: "rented", label: "Rented" },
+  ];
+}
+
+/** The choice showing for a listing's stored status. */
+export function statusChoice(status: string, kind?: string | null): string {
+  return status === "sold" && kind === "rent" ? "rented" : status;
+}
+
+/** What a choice means: the status to store, and the type it sets, if any. */
+export function fromStatusChoice(choice: string): { status: string; kind?: "sale" | "rent" } {
+  if (choice === "rented") return { status: "sold", kind: "rent" };
+  if (choice === "sold") return { status: "sold", kind: "sale" };
+  return { status: choice };
+}
+
 /** A listing's reference as shown to people: 7 → "VE-007". */
 export function formatRef(refNumber: number | null | undefined): string | null {
   return refNumber ? `VE-${String(refNumber).padStart(3, "0")}` : null;
