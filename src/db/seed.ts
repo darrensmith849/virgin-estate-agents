@@ -41,7 +41,7 @@ async function seed() {
       officeAddress: "Borrowdale, Harare, Zimbabwe",
       heroHeadline: "Find a home worth coming back to.",
       heroSubheadline:
-        "A considered selection of houses, apartments, stands and commercial property across Harare's most sought-after suburbs.",
+        "A considered selection of houses, apartments, stands and commercial property across Zimbabwe — from Harare’s most sought-after suburbs to Victoria Falls and beyond.",
     })
     .onConflictDoUpdate({ target: agencySettings.id, set: { name: "Virgin Estate Agents" } });
   console.log("  ✓ agency settings");

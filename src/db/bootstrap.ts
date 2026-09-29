@@ -61,7 +61,7 @@ const REAL_TEAM = [
     email: "kevinh@ccsales.co.zw",
     phone: "+263 712 602 565",
     whatsapp: "+263 712 602 565",
-    bio: "Kevin guides buyers and sellers across Harare's residential market with patience, sharp local insight and a genuine eye for the right fit — keeping every step considered, transparent and unhurried.",
+    bio: "Kevin guides buyers and sellers across Zimbabwe's residential market with patience, sharp local insight and a genuine eye for the right fit — keeping every step considered, transparent and unhurried.",
     sortOrder: 0,
   },
   {
@@ -79,7 +79,7 @@ const REAL_TEAM = [
     email: "boyd@virtrust.com",
     phone: "+263 775 472 523",
     whatsapp: "+263 775 472 523",
-    bio: "Boyd manages our sales team with a sharp eye for Harare's prime northern suburbs and a calm, considered approach to every deal — making sure every client feels well looked after from first viewing to close.",
+    bio: "Boyd manages our sales team with a sharp eye for prime property across Zimbabwe, from Harare's northern suburbs outward, and a calm, considered approach to every deal — making sure every client feels well looked after from first viewing to close.",
     sortOrder: 2,
   },
   {

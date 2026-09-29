@@ -6,7 +6,7 @@ import { Container } from "@/components/ui/container";
 import { ListingCard } from "@/components/listings/listing-card";
 import { ListingsFilters } from "@/components/listings/listings-filters";
 import { ListingsMap } from "@/components/listings/listings-map";
-import { listPropertyTypesInUse, listPublicListings } from "@/lib/data/listings";
+import { listPropertyTypesInUse, listPublicListings, listSearchAreas } from "@/lib/data/listings";
 import { getAgencySettings } from "@/lib/data/settings";
 import { PROPERTY_CATEGORIES, listingCategory, resolveVocabulary } from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Listings",
   description:
-    "Browse houses, apartments, stands and commercial property for sale and to rent across Harare.",
+    "Browse houses, apartments, stands, commercial and industrial property for sale and to rent across Zimbabwe.",
 };
 
 type SP = Record<string, string | undefined>;
@@ -32,9 +32,10 @@ export default async function ListingsPage({
   const sp = await searchParams;
   const view = sp.view === "map" ? "map" : "list";
 
-  const [settings, propertyTypes] = await Promise.all([
+  const [settings, propertyTypes, areas] = await Promise.all([
     getAgencySettings(),
     listPropertyTypesInUse(),
+    listSearchAreas(),
   ]);
   const vocabulary = resolveVocabulary(settings);
   const sort = (sp.sort as "newest" | "price_asc" | "price_desc") ?? "newest";
@@ -68,7 +69,7 @@ export default async function ListingsPage({
         </p>
       </header>
 
-      <ListingsFilters propertyTypes={propertyTypes} />
+      <ListingsFilters propertyTypes={propertyTypes} areas={areas} />
 
       <div className="mt-8">
         {items.length === 0 ? (

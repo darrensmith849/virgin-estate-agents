@@ -6,6 +6,7 @@ import { listings, listingImages, listingVideos } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
 import { backfillVideoPosters } from "@/lib/video-posters";
 import { formatPropertyType } from "@/lib/vocabulary";
+import { HARARE_SUBURBS } from "@/lib/constants";
 import { safeRead } from "./_safe";
 
 /** Videos for a listing, tolerant of the table not existing yet. */
@@ -385,6 +386,26 @@ export async function getPublicListingSlugs() {
  * invents is immediately filterable — and one nobody uses doesn't clutter the
  * menu. Old slugs and new free text are folded together by display name.
  */
+/**
+ * Areas to offer in the search dropdowns: the standard Harare suburbs plus
+ * every area that has a property on the site (Victoria Falls, Chirundu, …),
+ * so nothing listed outside Harare is unfindable.
+ */
+export async function listSearchAreas(): Promise<string[]> {
+  const inUse = await safeRead(async () => {
+    const rows = await db
+      .selectDistinct({ suburb: listings.suburb })
+      .from(listings)
+      .where(and(inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted, isNotNull(listings.suburb)));
+    return rows.map((r) => r.suburb!).filter((s) => s.trim());
+  }, [] as string[]);
+  const seen = new Map<string, string>();
+  for (const name of [...HARARE_SUBURBS, ...inUse]) {
+    if (!seen.has(name.trim().toLowerCase())) seen.set(name.trim().toLowerCase(), name);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
 export async function listPropertyTypesInUse(): Promise<string[]> {
   return safeRead(async () => {
     const rows = await db

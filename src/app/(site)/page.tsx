@@ -14,8 +14,8 @@ import { HowItWorks } from "@/components/site/how-it-works";
 import { SellerCta } from "@/components/site/seller-cta";
 import { Faq } from "@/components/site/faq";
 import { Testimonials } from "@/components/site/testimonials";
-import { getFeaturedListings, listPropertyTypesInUse } from "@/lib/data/listings";
-import { HARARE_SUBURBS } from "@/lib/constants";
+import { getFeaturedListings, listPropertyTypesInUse, listSearchAreas } from "@/lib/data/listings";
+import { getAgencySettings } from "@/lib/data/settings";
 import { cn } from "@/lib/utils";
 
 // Render at request time so featured listings reflect the live database.
@@ -23,20 +23,27 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Virgin Estate Agents — Property for Sale & Rent in Harare, Zimbabwe",
+    absolute: "Virgin Estate Agents — Property for Sale & Rent in Zimbabwe",
   },
   description:
-    "Browse curated houses, apartments, stands and commercial property across Harare's finest suburbs — Borrowdale, Highlands, Mount Pleasant, Avondale and Chisipite. Honest USD pricing and real photography.",
+    "Browse curated houses, apartments, stands, commercial and industrial property across Zimbabwe — from Harare's finest suburbs to Victoria Falls and beyond. Honest USD pricing and real photography.",
   alternates: { canonical: "/" },
 };
 
 const HERO_IMAGE = "/hero-home.jpg";
 
 export default async function HomePage() {
-  const [featured, propertyTypes] = await Promise.all([
+  const [featured, propertyTypes, areas, settings] = await Promise.all([
     getFeaturedListings(6),
     listPropertyTypesInUse(),
+    listSearchAreas(),
+    getAgencySettings(),
   ]);
+  // Editable in Settings → Homepage hero; these are the defaults.
+  const heroHeadline = settings.heroHeadline?.trim() || "Find a home worth coming back to.";
+  const heroSubheadline =
+    settings.heroSubheadline?.trim() ||
+    "A considered selection of houses, apartments, stands and commercial property across Zimbabwe — from Harare’s most sought-after suburbs to Victoria Falls and beyond.";
 
   return (
     <>
@@ -49,7 +56,7 @@ export default async function HomePage() {
       >
         <Image
           src={HERO_IMAGE}
-          alt="Premium Harare property"
+          alt="Premium property in Zimbabwe"
           fill
           priority
           fetchPriority="high"
@@ -59,11 +66,10 @@ export default async function HomePage() {
         <div className="hero-overlay" />
 
         <div className="hero-content">
-          <p className="hero-kicker">HARARE · ZIMBABWE</p>
-          <h1>Find a home worth coming back to.</h1>
+          <p className="hero-kicker">ZIMBABWE</p>
+          <h1>{heroHeadline}</h1>
           <p className="hero-copy">
-            A considered selection of houses, apartments, stands and commercial
-            property across Harare&rsquo;s most sought-after suburbs.
+            {heroSubheadline}
           </p>
 
           {/* Search bar */}
@@ -78,10 +84,10 @@ export default async function HomePage() {
                 name="suburb"
                 defaultValue=""
                 className="w-full bg-transparent text-sm text-ink outline-none"
-                aria-label="Suburb"
+                aria-label="Area"
               >
-                <option value="">Any suburb</option>
-                {HARARE_SUBURBS.map((s) => (
+                <option value="">Any area</option>
+                {areas.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -189,8 +195,8 @@ export default async function HomePage() {
             {[
               {
                 icon: MapPinned,
-                title: "Rooted in Harare",
-                body: "Deep familiarity with Borrowdale, Highlands, Mount Pleasant and beyond — the streets, schools and value.",
+                title: "Rooted in Zimbabwe",
+                body: "Deep local knowledge from Harare's northern suburbs to Victoria Falls and beyond — the areas, the streets and the value.",
               },
               {
                 icon: ShieldCheck,

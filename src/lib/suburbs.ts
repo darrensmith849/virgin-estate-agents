@@ -35,8 +35,9 @@ export const SUBURB_BLURBS: Record<string, string> = {
     "Central, leafy and convenient — characterful homes just minutes from the CBD.",
 };
 
+// For areas without their own write-up, which may be anywhere in Zimbabwe.
 const GENERIC_BLURB =
-  "A sought-after Harare neighbourhood — explore the homes we currently have available.";
+  "A sought-after area — explore the properties we currently have available here.";
 
 export function suburbBlurb(name: string): string {
   return SUBURB_BLURBS[name] ?? GENERIC_BLURB;

@@ -3,7 +3,7 @@ export const SITE = {
   name: "Virgin Estate Agents",
   shortName: "Virgin Estate",
   description:
-    "Find your next home in Harare. Curated houses, apartments, stands and commercial property across Zimbabwe's finest suburbs.",
+    "Find your next property in Zimbabwe. Curated houses, apartments, stands, commercial and industrial property — from Harare's finest suburbs to Victoria Falls and beyond.",
   city: "Harare",
   country: "Zimbabwe",
   // The agency's contact line is Boyd Littleford's mobile (same number for calls
@@ -16,7 +16,7 @@ export const SITE = {
   address: "7 Normandy Rd, Avondale, Harare, Zimbabwe",
   hours: "Mon–Fri 8:00–17:00 · Sat 9:00–13:00",
   // Placeholder credential — confirm/replace with the agency's real registration.
-  registration: "Registered estate agents — Harare, Zimbabwe",
+  registration: "Registered estate agents — Zimbabwe",
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   social: {
     facebook: "",

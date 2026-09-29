@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Our agents",
-  description: "Meet the Virgin Estate Agents team in Harare.",
+  description: "Meet the Virgin Estate Agents team — property specialists across Zimbabwe.",
 };
 
 export default async function AgentsPage() {
@@ -38,11 +38,11 @@ export default async function AgentsPage() {
             <p>
               Virgin Estate connects buyers, sellers and investors with
               carefully selected residential and commercial property across
-              Harare — supported by honest advice, clear communication and a
+              Zimbabwe — supported by honest advice, clear communication and a
               calm, professional process.
             </p>
             <div className="agents-trust-points">
-              <span>Harare-based expertise</span>
+              <span>Expertise across Zimbabwe</span>
               <span>Residential &amp; commercial</span>
               <span>Private viewings</span>
               <span>Straightforward advice</span>

@@ -8,7 +8,7 @@ import { SITE } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "About",
-  description: `About ${SITE.name} — a considered approach to property in Harare.`,
+  description: `About ${SITE.name} — a considered approach to property in Zimbabwe.`,
 };
 
 export default function AboutPage() {
@@ -20,7 +20,7 @@ export default function AboutPage() {
             About us
           </p>
           <h1 className="mt-4 text-4xl leading-tight sm:text-5xl">
-            A considered approach to property in Harare.
+            A considered approach to property in Zimbabwe.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-ink-soft">
             Virgin Estate Agents was founded on a simple belief: finding a home
@@ -39,9 +39,9 @@ export default function AboutPage() {
             <h2 className="text-2xl sm:text-3xl">What we stand for</h2>
             <div className="mt-6 space-y-5 leading-relaxed text-ink-soft">
               <p>
-                We work across Harare&rsquo;s most sought-after suburbs — from
-                Borrowdale and Highlands to Mount Pleasant and Avondale —
-                helping buyers, sellers, landlords and tenants alike.
+                We work across Zimbabwe — from Harare&rsquo;s most
+                sought-after suburbs to Victoria Falls and beyond — helping
+                buyers, sellers, landlords and tenants alike.
               </p>
               <p>
                 Clear pricing in USD, accurate specifications and real
@@ -59,7 +59,7 @@ export default function AboutPage() {
 
           <div className="space-y-8 border-t border-line pt-8 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
             {[
-              { stat: "20+", label: "Harare suburbs covered" },
+              { stat: "20+", label: "Areas covered across Zimbabwe" },
               { stat: "USD", label: "Transparent pricing" },
               { stat: "1:1", label: "Personal agent attention" },
             ].map((item) => (

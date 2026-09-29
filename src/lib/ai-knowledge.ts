@@ -15,7 +15,7 @@ ABOUT THE AGENCY
 - Full-service: residential sales, lettings & rentals, property management, valuations (in USD), commercial & land, and advisory/investment.
 - All pricing is quoted transparently in US dollars (USD).
 - Property types handled: ${types}.
-- Areas covered (Harare's most sought-after suburbs): ${suburbs}.
+- Areas covered: property across Zimbabwe — Harare's most sought-after suburbs (${suburbs}) as well as other regions such as Victoria Falls and Chirundu. The CURRENT LISTINGS section shows exactly where live properties are.
 - Office hours: ${SITE.hours}.
 
 HOW THINGS WORK

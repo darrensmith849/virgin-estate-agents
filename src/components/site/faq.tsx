@@ -9,7 +9,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "Which areas do you cover?",
-    a: "Harare's most sought-after suburbs — Borrowdale, Borrowdale Brooke, Highlands, Mount Pleasant, Avondale, Chisipite and more across the north and northeast.",
+    a: "Property across Zimbabwe — from Harare's most sought-after suburbs, such as Borrowdale, Highlands, Mount Pleasant, Avondale and Chisipite, to Victoria Falls, Chirundu and other regions.",
   },
   {
     q: "How do I arrange a viewing?",

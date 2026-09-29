@@ -19,9 +19,12 @@ const PRICE_OPTS = [
 
 export function ListingsFilters({
   propertyTypes,
+  areas = [...HARARE_SUBURBS],
 }: {
   /** Types actually in use, so agency-invented types are filterable. */
   propertyTypes: string[];
+  /** Areas to offer: Harare suburbs plus anywhere that has listings. */
+  areas?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -98,12 +101,12 @@ export function ListingsFilters({
       {/* Selects */}
       <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
         <Select
-          aria-label="Suburb"
+          aria-label="Area"
           value={params.get("suburb") ?? ""}
           onChange={(e) => update({ suburb: e.target.value })}
         >
-          <option value="">Any suburb</option>
-          {HARARE_SUBURBS.map((s) => (
+          <option value="">Any area</option>
+          {areas.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>

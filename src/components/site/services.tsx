@@ -13,7 +13,7 @@ const SERVICES = [
   {
     icon: Home,
     title: "Residential sales",
-    body: "Buying or selling a home across Harare's northern suburbs, handled with care from first viewing to final signature.",
+    body: "Buying or selling a home anywhere in Zimbabwe, from Harare's northern suburbs outward — handled with care from first viewing to final signature.",
   },
   {
     icon: KeyRound,

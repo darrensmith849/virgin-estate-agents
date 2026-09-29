@@ -34,7 +34,7 @@ export function Testimonials() {
             What our clients say
           </p>
           <h2 className="mt-4 text-3xl sm:text-4xl">
-            Trusted across Harare&rsquo;s finest suburbs.
+            Trusted across Zimbabwe.
           </h2>
         </div>
 

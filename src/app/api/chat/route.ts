@@ -163,7 +163,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (history.length === 0 || history[history.length - 1].role !== "user") {
     return Response.json({
-      reply: "How can I help with your property search in Harare today?",
+      reply: "How can I help with your property search in Zimbabwe today?",
     });
   }
 

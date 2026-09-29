@@ -29,7 +29,7 @@ import { AdminBar } from "@/components/admin/admin-bar";
 import { ListingCard } from "@/components/listings/listing-card";
 import { SITE, formatRef } from "@/lib/constants";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
-import { slugifySuburb, suburbBlurb } from "@/lib/suburbs";
+import { slugifySuburb, suburbBlurb, suburbFromSlug } from "@/lib/suburbs";
 import { formatArea, formatPrice } from "@/lib/utils";
 
 export type DetailListing = NonNullable<
@@ -104,13 +104,19 @@ export function ListingDetail({
   };
 
   // Breadcrumb trail (+ schema): Home › Listings › Suburb › Title
-  const suburbSlug = listing.suburb ? slugifySuburb(listing.suburb) : null;
+  // Only Harare suburbs have a guide page; anywhere else (Victoria Falls,
+  // Chirundu, …) links to that area's listings instead of a missing page.
+  const suburbSlug =
+    listing.suburb && suburbFromSlug(slugifySuburb(listing.suburb))
+      ? slugifySuburb(listing.suburb)
+      : null;
+  const areaHref = suburbSlug
+    ? `/guides/${suburbSlug}`
+    : `/listings?suburb=${encodeURIComponent(listing.suburb ?? "")}`;
   const crumbs = [
     { name: "Home", href: "/" },
     { name: "Listings", href: "/listings" },
-    ...(listing.suburb && suburbSlug
-      ? [{ name: listing.suburb, href: `/guides/${suburbSlug}` }]
-      : []),
+    ...(listing.suburb ? [{ name: listing.suburb, href: areaHref }] : []),
     { name: listing.title, href: `/listings/${listing.slug}` },
   ];
   const breadcrumbLd = {
@@ -333,20 +339,20 @@ export function ListingDetail({
               <p className="mt-4 leading-relaxed text-ink-soft">
                 {suburbBlurb(listing.suburb)}
               </p>
-              {suburbSlug && (
-                <Link
-                  href={`/guides/${suburbSlug}`}
-                  className="group mt-4 inline-flex items-center gap-1.5 text-sm text-brand hover:text-brand-700"
-                >
-                  <span className="link-underline">
-                    Explore the {listing.suburb} guide
-                  </span>
-                  <ArrowRight
-                    size={14}
-                    className="transition-transform duration-300 ease-out group-hover:translate-x-1"
-                  />
-                </Link>
-              )}
+              <Link
+                href={areaHref}
+                className="group mt-4 inline-flex items-center gap-1.5 text-sm text-brand hover:text-brand-700"
+              >
+                <span className="link-underline">
+                  {suburbSlug
+                    ? `Explore the ${listing.suburb} guide`
+                    : `See all properties in ${listing.suburb}`}
+                </span>
+                <ArrowRight
+                  size={14}
+                  className="transition-transform duration-300 ease-out group-hover:translate-x-1"
+                />
+              </Link>
             </div>
           )}
         </div>

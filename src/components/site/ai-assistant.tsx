@@ -7,11 +7,11 @@ import { Sparkles, X, Send, RotateCcw, ArrowUpRight } from "lucide-react";
 type Msg = { role: "user" | "assistant"; content: string };
 
 const GREETING =
-  "Hi 👋 I'm the Virgin Estate assistant. Ask me anything about buying, selling or renting in Harare — or pick a topic below.";
+  "Hi 👋 I'm the Virgin Estate assistant. Ask me anything about buying, selling or renting in Zimbabwe — or pick a topic below.";
 
 // Quick options. `prompt` ones ask the assistant; `href` ones jump to a page.
 const QUICK: { label: string; prompt?: string; href?: string }[] = [
-  { label: "Areas you cover", prompt: "Which areas of Harare do you cover?" },
+  { label: "Areas you cover", prompt: "Which areas do you cover?" },
   { label: "Arrange a viewing", prompt: "How do I arrange a viewing?" },
   {
     label: "Sell or let my property",
@@ -220,7 +220,7 @@ export function AiAssistant() {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about property in Harare…"
+              placeholder="Ask about property in Zimbabwe…"
               className="min-w-0 flex-1 rounded-full border border-line bg-paper-2 px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-brand"
             />
             <button

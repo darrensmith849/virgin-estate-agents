@@ -20,7 +20,7 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: {
-    default: `${SITE.name} — Property in Harare, Zimbabwe`,
+    default: `${SITE.name} — Property in Zimbabwe`,
     template: `%s · ${SITE.name}`,
   },
   description: SITE.description,
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
         url: "/og-image.jpg",
         width: 1200,
         height: 675,
-        alt: `${SITE.name} — premium property in Harare`,
+        alt: `${SITE.name} — premium property in Zimbabwe`,
       },
     ],
   },

@@ -12,7 +12,7 @@ import { whatsappLink } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: `Get in touch with ${SITE.name} in Harare, Zimbabwe.`,
+  description: `Get in touch with ${SITE.name} — based in Harare, working across Zimbabwe.`,
 };
 
 // force-dynamic so contact-detail edits in config deploy live (avoids the

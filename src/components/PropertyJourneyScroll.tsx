@@ -33,17 +33,17 @@ const SCALE_PEAK = 1.22; // "almost a complete zoom in" before zooming back out
 const journeyImages = [
   {
     src: "/images/property-journey-exterior.jpg",
-    alt: "Luxury Harare property exterior at dusk",
+    alt: "Luxury property exterior at dusk",
     label: "Exterior",
   },
   {
     src: "/images/property-journey-interior.jpg",
-    alt: "Luxury Harare property, open-plan interior",
+    alt: "Luxury property, open-plan interior",
     label: "Interior",
   },
   {
     src: "/images/property-journey-detail.jpg",
-    alt: "Luxury Harare property, living detail",
+    alt: "Luxury property, living detail",
     label: "Detail",
   },
 ];
