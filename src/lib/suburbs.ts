@@ -41,13 +41,3 @@ const GENERIC_BLURB =
 export function suburbBlurb(name: string): string {
   return SUBURB_BLURBS[name] ?? GENERIC_BLURB;
 }
-
-/** The suburbs surfaced in the home-page "Explore by suburb" section. */
-export const FEATURED_SUBURBS: string[] = [
-  "Borrowdale",
-  "Highlands",
-  "Mount Pleasant",
-  "Avondale",
-  "Chisipite",
-  "Borrowdale Brooke",
-];
