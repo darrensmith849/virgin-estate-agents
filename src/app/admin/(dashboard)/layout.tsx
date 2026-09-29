@@ -19,7 +19,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const [newEnquiries, binCount, soldCount] = await Promise.all([
+  const [newEnquiries, binCount, closed] = await Promise.all([
     countNewEnquiries(),
     countBinnedListings(),
     countSoldListings(),
@@ -64,7 +64,12 @@ export default async function AdminLayout({
             </form>
           </div>
         </div>
-        <AdminNav newEnquiries={newEnquiries} binCount={binCount} soldCount={soldCount} />
+        <AdminNav
+          newEnquiries={newEnquiries}
+          binCount={binCount}
+          soldCount={closed.sold}
+          rentedCount={closed.rented}
+        />
       </aside>
 
       <div className="min-w-0">

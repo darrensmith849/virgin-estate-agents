@@ -62,12 +62,23 @@ export default async function EditListingPage({
 
   return (
     <>
-      {/* A sold listing lives on the Sold tab, so go back there. */}
+      {/* A sold or rented listing lives on its own tab, so go back there. */}
       <Link
-        href={listing.status === "sold" ? "/admin/sold" : "/admin/listings"}
+        href={
+          listing.status !== "sold"
+            ? "/admin/listings"
+            : listing.kind === "rent"
+              ? "/admin/rented"
+              : "/admin/sold"
+        }
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
       >
-        <ArrowLeft size={15} /> {listing.status === "sold" ? "Back to sold" : "Back to listings"}
+        <ArrowLeft size={15} />{" "}
+        {listing.status !== "sold"
+          ? "Back to listings"
+          : listing.kind === "rent"
+            ? "Back to rented"
+            : "Back to sold"}
       </Link>
 
       <PageHeader

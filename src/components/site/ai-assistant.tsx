@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Sparkles, X, Send, RotateCcw, ArrowUpRight } from "lucide-react";
+import { Sparkles, X, Send, RotateCcw, ArrowUpRight, MessageCircle } from "lucide-react";
+
+import { WhatsappIcon } from "@/components/site/whatsapp-icon";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -25,8 +27,25 @@ const QUICK: { label: string; prompt?: string; href?: string }[] = [
   { label: "Talk to the team", href: "/contact" },
 ];
 
-export function AiAssistant() {
+/*
+ * The single contact button in the corner of every page.
+ *
+ * With the assistant switched on (a chat model key on the server) it opens a
+ * small choice — WhatsApp or live chat. Without one it is simply a WhatsApp
+ * button, so visitors are never offered a chat that can't answer.
+ */
+export function AiAssistant({
+  whatsappHref,
+  assistantEnabled,
+}: {
+  /** wa.me link to the agency's WhatsApp, or null if none is set. */
+  whatsappHref: string | null;
+  /** Whether the live-chat assistant can answer (a model key is configured). */
+  assistantEnabled: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  /** The WhatsApp / live chat choice is showing. */
+  const [menu, setMenu] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
     { role: "assistant", content: GREETING },
   ]);
@@ -86,22 +105,99 @@ export function AiAssistant() {
   const last = messages[messages.length - 1];
   const showChips = !loading && last.role === "assistant";
 
+  const launcherClass =
+    "group fixed bottom-5 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-brand p-2.5 text-white shadow-lg shadow-brand/30 transition-transform duration-300 ease-out hover:scale-105 hover:bg-brand-700 sm:bottom-6 sm:right-6 sm:py-3 sm:pl-3 sm:pr-4";
+
+  // No assistant: the button goes straight to WhatsApp.
+  if (!assistantEnabled) {
+    if (!whatsappHref) return null;
+    return (
+      <a
+        href={whatsappHref}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Chat with us on WhatsApp"
+        className={launcherClass}
+      >
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/15 sm:h-8 sm:w-8">
+          <WhatsappIcon className="h-[18px] w-[18px]" />
+        </span>
+        <span className="hidden text-sm font-medium sm:inline">WhatsApp us</span>
+      </a>
+    );
+  }
+
   return (
     <>
-      {/* Icon-only on phones so this and the WhatsApp button stay a compact
-          pair in the corner; the label returns from `sm` up. */}
+      {/* One button; icon-only on phones, labelled from `sm` up. */}
       {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open the Virgin Estate assistant"
-          className="group fixed bottom-5 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-brand p-2.5 text-white shadow-lg shadow-brand/30 transition-transform duration-300 ease-out hover:scale-105 hover:bg-brand-700 sm:bottom-6 sm:right-6 sm:py-3 sm:pl-3 sm:pr-4"
-        >
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/15 sm:h-8 sm:w-8">
-            <Sparkles size={18} />
-          </span>
-          <span className="hidden text-sm font-medium sm:inline">Ask us</span>
-        </button>
+        <>
+          {menu && (
+            <>
+              {/* Click anywhere else to close the choice. */}
+              <button
+                type="button"
+                aria-hidden
+                tabIndex={-1}
+                onClick={() => setMenu(false)}
+                className="fixed inset-0 z-40 cursor-default"
+              />
+              <div
+                role="menu"
+                className="fixed bottom-20 right-4 z-50 w-56 overflow-hidden rounded-2xl border border-line bg-card p-1.5 shadow-2xl sm:bottom-24 sm:right-6"
+              >
+                {whatsappHref && (
+                  <a
+                    role="menuitem"
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => setMenu(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink transition-colors hover:bg-paper-2"
+                  >
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#25D366] text-white">
+                      <WhatsappIcon className="h-[18px] w-[18px]" />
+                    </span>
+                    <span>
+                      <span className="block font-medium">WhatsApp</span>
+                      <span className="block text-xs text-muted">Message the team</span>
+                    </span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    setOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink transition-colors hover:bg-paper-2"
+                >
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white">
+                    <Sparkles size={16} />
+                  </span>
+                  <span>
+                    <span className="block font-medium">Live chat</span>
+                    <span className="block text-xs text-muted">Ask our assistant now</span>
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setMenu((m) => !m)}
+            aria-expanded={menu}
+            aria-haspopup="menu"
+            aria-label="Contact us: WhatsApp or live chat"
+            className={launcherClass}
+          >
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/15 sm:h-8 sm:w-8">
+              {menu ? <X size={18} /> : <MessageCircle size={18} />}
+            </span>
+            <span className="hidden text-sm font-medium sm:inline">Contact us</span>
+          </button>
+        </>
       )}
 
       {open && (

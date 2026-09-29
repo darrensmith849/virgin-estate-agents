@@ -1,9 +1,9 @@
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
-import { WhatsappFab } from "@/components/site/whatsapp-fab";
 import { AiAssistant } from "@/components/site/ai-assistant";
 import { getContactDetails, type ContactDetails } from "@/lib/data/settings";
 import { SITE } from "@/lib/constants";
+import { whatsappLink } from "@/lib/utils";
 
 /** RealEstateAgent structured data for search engines, with the agency's
  *  contact details from Settings. */
@@ -54,8 +54,15 @@ export default async function SiteLayout({
         {children}
         <SiteFooter />
       </main>
-      <WhatsappFab />
-      <AiAssistant />
+      {/* One contact button: WhatsApp, plus live chat once the assistant has a
+          model key on the server. */}
+      <AiAssistant
+        whatsappHref={whatsappLink(
+          contact.whatsapp,
+          `Hi ${SITE.name}, I'd like to enquire about a property.`,
+        )}
+        assistantEnabled={Boolean(process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY)}
+      />
     </>
   );
 }

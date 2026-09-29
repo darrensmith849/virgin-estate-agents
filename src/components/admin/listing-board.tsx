@@ -61,7 +61,7 @@ type Handlers = {
   start: (fn: () => void) => void;
   /** Mark a listing Sold: it leaves the board for the Sold tab. */
   markSold: (listing: BoardListing) => void;
-  setOverZone: (fn: (z: "featured" | "rest" | null) => "featured" | "rest" | null) => void;
+  setOverZone: (fn: (z: string | null) => string | null) => void;
 };
 
 function Card({
@@ -203,24 +203,28 @@ function Card({
 
 function Zone({
   name,
+  highlight = name,
   rows,
   empty,
   overZone,
   h,
 }: {
   name: "featured" | "rest";
+  /** Which box lights up while dragging over it (the sale and rent groups
+   *  are both "rest" but light up separately). */
+  highlight?: string;
   rows: BoardListing[];
   empty: string;
-  overZone: "featured" | "rest" | null;
+  overZone: string | null;
   h: Handlers;
 }) {
   return (
     <div
       onDragOver={(e) => {
         e.preventDefault();
-        h.setOverZone(() => name);
+        h.setOverZone(() => highlight);
       }}
-      onDragLeave={() => h.setOverZone((z) => (z === name ? null : z))}
+      onDragLeave={() => h.setOverZone((z) => (z === highlight ? null : z))}
       onDrop={(e) => {
         e.preventDefault();
         const id = h.getDragId();
@@ -230,7 +234,7 @@ function Zone({
       }}
       className={cn(
         "overflow-hidden rounded-xl border transition-colors",
-        overZone === name ? "border-brand bg-brand-50/40" : "border-line",
+        overZone === highlight ? "border-brand bg-brand-50/40" : "border-line",
         rows.length === 0 && "border-dashed",
       )}
     >
@@ -253,12 +257,12 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
     (_prev: BoardListing[], next: BoardListing[]) => next,
   );
   const dragId = useRef<string | null>(null);
-  const [overZone, setOverZone] = useState<"featured" | "rest" | null>(null);
-  /** Says where a listing marked Sold went, rather than it just vanishing. */
-  const [soldNotice, setSoldNotice] = useState<string | null>(null);
+  const [overZone, setOverZone] = useState<string | null>(null);
+  /** Says where a listing marked Sold / Rented went, rather than it vanishing. */
+  const [soldNotice, setSoldNotice] = useState<{ title: string; rent: boolean } | null>(null);
 
   function markSold(listing: BoardListing) {
-    setSoldNotice(listing.title);
+    setSoldNotice({ title: listing.title, rent: listing.kind === "rent" });
     start(() => {
       setItems(items.filter((l) => l.id !== listing.id));
       void setListingStatus(listing.id, "sold");
@@ -267,6 +271,8 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
 
   const featured = items.filter((l) => l.isFeatured);
   const rest = items.filter((l) => !l.isFeatured);
+  const forSale = rest.filter((l) => l.kind === "sale");
+  const toRent = rest.filter((l) => l.kind === "rent");
 
   /** Apply a new arrangement locally, then persist the featured set. */
   function commit(next: BoardListing[]) {
@@ -324,9 +330,13 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
           role="status"
           className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] bg-brand-50 px-4 py-3 text-sm text-brand"
         >
-          “{soldNotice}” is marked Sold and has moved to the Sold tab.
-          <Link href="/admin/sold" className="font-medium underline underline-offset-2">
-            Open Sold
+          “{soldNotice.title}” is marked {soldNotice.rent ? "Rented" : "Sold"} and has moved to
+          the {soldNotice.rent ? "Rented" : "Sold"} tab.
+          <Link
+            href={soldNotice.rent ? "/admin/rented" : "/admin/sold"}
+            className="font-medium underline underline-offset-2"
+          >
+            Open {soldNotice.rent ? "Rented" : "Sold"}
           </Link>
         </p>
       )}
@@ -350,15 +360,34 @@ export function ListingBoard({ listings }: { listings: BoardListing[] }) {
         />
       </section>
 
-      <section>
-        <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-lg">All listings</h2>
-          <p className="text-sm text-muted">
-            Drag one up into the group above to feature it on the homepage.
-          </p>
-        </div>
-        <Zone name="rest" rows={rest} overZone={overZone} h={handlers} empty="Every listing is featured." />
-      </section>
+      {/* Sales and rentals kept apart. Both are "not on the homepage": dropping
+          a listing in either takes it off the homepage, into its own group. */}
+      {(
+        [
+          { kind: "sale", title: "For sale", rows: forSale, empty: "No listings for sale that aren't on the homepage." },
+          { kind: "rent", title: "To rent", rows: toRent, empty: "No rentals yet — set a listing's type to To Rent and it appears here." },
+        ] as const
+      ).map((group) => (
+        <section key={group.kind}>
+          <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="text-lg">
+              {group.title}{" "}
+              <span className="text-sm font-normal text-muted">({group.rows.length})</span>
+            </h2>
+            <p className="text-sm text-muted">
+              Drag one up into the homepage group to feature it.
+            </p>
+          </div>
+          <Zone
+            name="rest"
+            highlight={`rest-${group.kind}`}
+            rows={group.rows}
+            overZone={overZone}
+            h={handlers}
+            empty={group.empty}
+          />
+        </section>
+      ))}
     </div>
   );
 }

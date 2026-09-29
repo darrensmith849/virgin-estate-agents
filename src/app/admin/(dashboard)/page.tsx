@@ -120,24 +120,33 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      {/* Recently sold — the Sold tab has them all, with their actions. */}
+      {/* Recently sold or rented — the Sold and Rented tabs have them all. */}
       <section id="sold" className="mt-6 min-w-0 scroll-mt-20 rounded-xl border border-line bg-card">
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
           <h2 className="text-base font-medium text-ink">
-            Recently sold <span className="font-normal text-muted">({stats.soldCount})</span>
+            Recently sold or rented{" "}
+            <span className="font-normal text-muted">({stats.soldCount})</span>
           </h2>
-          <Link
-            href="/admin/sold"
-            className="flex items-center gap-1 text-sm text-brand hover:underline"
-          >
-            View all <ArrowRight size={14} />
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/sold"
+              className="flex items-center gap-1 text-sm text-brand hover:underline"
+            >
+              Sold <ArrowRight size={14} />
+            </Link>
+            <Link
+              href="/admin/rented"
+              className="flex items-center gap-1 text-sm text-brand hover:underline"
+            >
+              Rented <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
         <ul className="divide-y divide-line">
           {stats.sold.length === 0 && (
             <li className="px-5 py-6 text-sm text-muted">
-              Nothing sold yet. When a listing is marked Sold it moves to the Sold tab, with its
-              reference number.
+              Nothing sold or rented yet. When a listing is marked Sold or Rented it moves to that
+              tab, with its reference number.
             </li>
           )}
           {stats.sold.map((l) => (
@@ -155,7 +164,7 @@ export default async function DashboardPage() {
                     {[
                       l.suburb,
                       formatPrice(l.price, { kind: l.kind, period: l.rentPeriod }),
-                      l.soldAt ? `${l.kind === "rent" ? "let" : "sold"} ${timeAgo(l.soldAt)}` : null,
+                      l.soldAt ? `${l.kind === "rent" ? "rented" : "sold"} ${timeAgo(l.soldAt)}` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}

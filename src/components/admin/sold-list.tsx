@@ -24,10 +24,11 @@ export type SoldRow = {
 };
 
 /*
- * The Sold tab's rows. Each can be viewed on the site, edited, put back on the
- * market (for when a sale falls through) or moved to the recycle bin.
+ * The Sold / Rented tab's rows. Each can be viewed on the site, edited, put
+ * back on the market (for when a deal falls through) or moved to the recycle
+ * bin.
  */
-export function SoldList({ rows }: { rows: SoldRow[] }) {
+export function SoldList({ rows, kind }: { rows: SoldRow[]; kind: "sale" | "rent" }) {
   const [items, setItems] = useOptimistic(rows, (_prev: SoldRow[], next: SoldRow[]) => next);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, start] = useTransition();
@@ -59,10 +60,11 @@ export function SoldList({ rows }: { rows: SoldRow[] }) {
 
       {items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-line bg-card p-12 text-center">
-          <p className="text-ink">Nothing marked Sold right now.</p>
+          <p className="text-ink">Nothing marked {kind === "rent" ? "Rented" : "Sold"} right now.</p>
           <p className="mt-1 text-sm text-muted">
-            When a listing&rsquo;s status is set to Sold it moves here from the Listings page, with
-            its reference number.
+            When a {kind === "rent" ? "rental" : "listing"}&rsquo;s status is set to{" "}
+            {kind === "rent" ? "Rented" : "Sold"} it moves here from the Listings page, with its
+            reference number.
           </p>
         </div>
       ) : (

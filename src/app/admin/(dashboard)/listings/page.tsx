@@ -13,27 +13,30 @@ export default async function AdminListingsPage() {
   // Clear out anything that has been in the recycle bin past its 30 days —
   // alongside the read, since binned listings aren't on the board anyway.
   const [, items] = await Promise.all([purgeExpiredListings(), listAdminListings()]);
-  // Sold listings move to the Sold list on the dashboard.
-  const sold = items.filter((l) => l.status === "sold").length;
+  // Sold and rented listings move to their own tabs.
+  const sold = items.filter((l) => l.status === "sold" && l.kind === "sale").length;
+  const rented = items.filter((l) => l.status === "sold" && l.kind === "rent").length;
   const time = (d: Date | null) => (d ? new Date(d).getTime() : 0);
   const active = items.filter((l) => l.status !== "sold");
   // The homepage group, in the order the homepage shows it.
   const featured = active
     .filter((l) => l.isFeatured)
     .sort((a, b) => a.featuredOrder - b.featuredOrder || time(b.publishedAt) - time(a.publishedAt));
-  // The rest: drafts being worked on first, then by reference number — first
-  // listed to most recent.
-  const drafts = active
-    .filter((l) => !l.isFeatured && l.status === "draft")
-    .sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
-  const listed = active
-    .filter((l) => !l.isFeatured && l.status !== "draft")
-    .sort(
-      (a, b) =>
-        (a.refNumber ?? Number.MAX_SAFE_INTEGER) - (b.refNumber ?? Number.MAX_SAFE_INTEGER) ||
-        time(a.publishedAt) - time(b.publishedAt),
-    );
-  const onBoard = [...featured, ...drafts, ...listed];
+  // The rest, for sale then to rent (shown as separate groups): drafts being
+  // worked on first, then by reference number — first listed to most recent.
+  const rest = (kind: "sale" | "rent") => [
+    ...active
+      .filter((l) => !l.isFeatured && l.kind === kind && l.status === "draft")
+      .sort((a, b) => time(b.updatedAt) - time(a.updatedAt)),
+    ...active
+      .filter((l) => !l.isFeatured && l.kind === kind && l.status !== "draft")
+      .sort(
+        (a, b) =>
+          (a.refNumber ?? Number.MAX_SAFE_INTEGER) - (b.refNumber ?? Number.MAX_SAFE_INTEGER) ||
+          time(a.publishedAt) - time(b.publishedAt),
+      ),
+  ];
+  const onBoard = [...featured, ...rest("sale"), ...rest("rent")];
 
   // Flattened to just what the board renders, so the whole listing row (and
   // every agent field on it) isn't serialised into the client bundle.
@@ -86,7 +89,11 @@ export default async function AdminListingsPage() {
             <Link href="/admin/sold" className="text-brand hover:underline">
               Sold tab
             </Link>
-            {sold > 0 ? ` (${sold} so far)` : ""}, and stay on the website marked SOLD.
+            {sold > 0 ? ` (${sold})` : ""} and rented ones to the{" "}
+            <Link href="/admin/rented" className="text-brand hover:underline">
+              Rented tab
+            </Link>
+            {rented > 0 ? ` (${rented})` : ""}. Both stay on the website, marked SOLD or RENTED.
           </p>
         </>
       )}

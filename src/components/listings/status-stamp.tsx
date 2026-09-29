@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /**
  * A bold status stamp laid over a listing's photo — the same status the admin
  * sets on the listing: "FOR SALE" (or "TO RENT"), "UNDER OFFER", "SOLD" (or
- * "LET"). An available listing uses the agency's own wording for sale / rent
+ * "RENTED"). An available listing uses the agency's own wording for sale / rent
  * from Settings when given, so it reads the same as the site's headings and
  * tabs. Drafts aren't public, so they get none.
  */
@@ -15,7 +15,7 @@ export function stampLabel(
   if (status === "for_sale") {
     return kind === "rent" ? (kindLabels?.rent ?? "To rent") : (kindLabels?.sale ?? "For sale");
   }
-  if (status === "sold") return kind === "rent" ? "Let" : "Sold";
+  if (status === "sold") return kind === "rent" ? "Rented" : "Sold";
   if (status === "under_offer") return "Under offer";
   return null;
 }

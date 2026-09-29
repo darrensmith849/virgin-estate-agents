@@ -53,7 +53,7 @@ export default async function ListingsPage({
   ]);
   const vocabulary = resolveVocabulary(settings);
 
-  const [propertyTypes, { items, total, sold, page, pageCount }] = await Promise.all([
+  const [propertyTypes, { items, total, sold, rented, page, pageCount }] = await Promise.all([
     // The same list of types the dashboard offers (Settings → Property types).
     listTypeFilterOptions(vocabulary.propertyTypeOptions),
     listPublicListings({
@@ -91,7 +91,9 @@ export default async function ListingsPage({
       <header className="mb-6">
         <h1 className="text-3xl sm:text-4xl">Listings</h1>
         <p className="mt-1.5 text-sm text-muted">
-          {total - sold} available{sold > 0 ? ` · ${sold} sold` : ""}
+          {total - sold - rented} available
+          {sold > 0 ? ` · ${sold} sold` : ""}
+          {rented > 0 ? ` · ${rented} rented` : ""}
         </p>
       </header>
 

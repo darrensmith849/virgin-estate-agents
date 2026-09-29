@@ -87,10 +87,10 @@ export function formatRef(refNumber: number | null | undefined): string | null {
   return refNumber ? `VE-${String(refNumber).padStart(3, "0")}` : null;
 }
 
-/** A status as it reads for this listing: a rental is "To Rent", then "Let". */
+/** A status as it reads for this listing: a rental is "To Rent", then "Rented". */
 export function statusLabel(status: string, kind?: string | null): string {
   if (kind === "rent" && status === "for_sale") return "To Rent";
-  if (kind === "rent" && status === "sold") return "Let";
+  if (kind === "rent" && status === "sold") return "Rented";
   return LISTING_STATUSES.find((s) => s.value === status)?.label ?? "Draft";
 }
 

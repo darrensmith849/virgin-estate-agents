@@ -79,9 +79,10 @@ export async function createListing(
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/admin/sold");
+  revalidatePath("/admin/rented");
   revalidatePath("/"); // home featured grid is static
-  // A sold listing lives on the Sold tab, not the listings board.
-  redirect(data.status === "sold" ? "/admin/sold" : "/admin/listings");
+  // A sold (or rented) listing lives on its own tab, not the listings board.
+  redirect(closedTab(data) ?? "/admin/listings");
 }
 
 /**
@@ -111,6 +112,12 @@ async function afterStatusChange(id: string): Promise<void> {
   } catch (err) {
     console.error("[sold] couldn't record the sold date:", err);
   }
+}
+
+/** The tab a listing lives on once sold (Sold) or rented (Rented), if either. */
+function closedTab(listing: { status: string; kind: string }): string | null {
+  if (listing.status !== "sold") return null;
+  return listing.kind === "rent" ? "/admin/rented" : "/admin/sold";
 }
 
 /** Slug base for a placeholder draft created before the form is filled in. */
@@ -199,12 +206,13 @@ export async function updateListing(
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/admin/sold");
+  revalidatePath("/admin/rented");
   revalidatePath(`/admin/listings/${id}/edit`);
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");
-  // A sold listing lives on the Sold tab, not the listings board — sending it
-  // back to the board would look as though it had vanished.
-  redirect(data.status === "sold" ? "/admin/sold" : "/admin/listings");
+  // A sold (or rented) listing lives on its own tab, not the listings board —
+  // sending it back to the board would look as though it had vanished.
+  redirect(closedTab(data) ?? "/admin/listings");
 }
 
 /**
@@ -232,6 +240,7 @@ export async function setListingPublished(
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/admin/sold");
+  revalidatePath("/admin/rented");
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");
 }
@@ -294,15 +303,16 @@ export async function setListingStatus(id: string, status: string): Promise<void
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/admin/sold");
+  revalidatePath("/admin/rented");
   revalidatePath("/");
   revalidatePath("/listings");
   revalidatePath("/listings/[slug]", "page");
 }
 
 /**
- * Put a sold listing back on the market — for when a sale falls through. It
- * returns to the listings board as For Sale (To Rent for a rental), keeping
- * its reference number.
+ * Put a sold or rented listing back on the market — for when a sale or let
+ * falls through. It returns to the listings board as For Sale (To Rent for a
+ * rental), keeping its reference number.
  */
 export async function relistListing(id: string): Promise<void> {
   const user = await getCurrentUser();
@@ -399,6 +409,7 @@ function revalidateListingPages() {
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/admin/sold");
+  revalidatePath("/admin/rented");
   revalidatePath("/admin/recycle-bin");
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");

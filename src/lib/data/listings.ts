@@ -182,7 +182,8 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
         db
           .select({
             count: sql<number>`count(*)::int`,
-            sold: sql<number>`(count(*) filter (where ${listings.status} = 'sold'))::int`,
+            sold: sql<number>`(count(*) filter (where ${listings.status} = 'sold' and ${listings.kind} = 'sale'))::int`,
+            rented: sql<number>`(count(*) filter (where ${listings.status} = 'sold' and ${listings.kind} = 'rent'))::int`,
           })
           .from(listings)
           .where(where),
@@ -192,12 +193,13 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
         items: rows.map((r) => ({ ...r, agent: publicAgent(r.agent) })),
         total: totalRow[0]?.count ?? 0,
         sold: totalRow[0]?.sold ?? 0,
+        rented: totalRow[0]?.rented ?? 0,
         page,
         perPage,
         pageCount: Math.max(1, Math.ceil((totalRow[0]?.count ?? 0) / perPage)),
       };
     },
-    { items: [], total: 0, sold: 0, page, perPage, pageCount: 1 },
+    { items: [], total: 0, sold: 0, rented: 0, page, perPage, pageCount: 1 },
   );
 }
 
@@ -358,10 +360,13 @@ export async function listAdminListings() {
   });
 }
 
-/** The Sold tab: sold listings in reference order, with a cover photo. */
-export async function listSoldListings() {
+/**
+ * The Sold tab (kind "sale") or the Rented tab (kind "rent"): listings marked
+ * sold / rented, in reference order, with a cover photo.
+ */
+export async function listSoldListings(kind: "sale" | "rent") {
   return db.query.listings.findMany({
-    where: and(eq(listings.status, "sold"), notDeleted),
+    where: and(eq(listings.status, "sold"), eq(listings.kind, kind), notDeleted),
     orderBy: [asc(listings.refNumber), asc(listings.publishedAt)],
     columns: {
       id: true,
@@ -384,15 +389,21 @@ export async function listSoldListings() {
   });
 }
 
-/** How many listings are marked Sold, for the admin sidebar. */
-export async function countSoldListings(): Promise<number> {
-  return safeRead(async () => {
-    const [row] = await db
-      .select({ c: sql<number>`count(*)::int` })
-      .from(listings)
-      .where(and(eq(listings.status, "sold"), notDeleted));
-    return row?.c ?? 0;
-  }, 0);
+/** How many listings are sold and how many rented, for the admin sidebar. */
+export async function countSoldListings(): Promise<{ sold: number; rented: number }> {
+  return safeRead(
+    async () => {
+      const [row] = await db
+        .select({
+          sold: sql<number>`(count(*) filter (where ${listings.kind} = 'sale'))::int`,
+          rented: sql<number>`(count(*) filter (where ${listings.kind} = 'rent'))::int`,
+        })
+        .from(listings)
+        .where(and(eq(listings.status, "sold"), notDeleted));
+      return { sold: row?.sold ?? 0, rented: row?.rented ?? 0 };
+    },
+    { sold: 0, rented: 0 },
+  );
 }
 
 export async function getListingById(id: string) {
