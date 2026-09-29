@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import {
   LayoutDashboard,
   Home,
@@ -12,12 +13,13 @@ import {
   Trash2,
   BadgeCheck,
   KeyRound,
+  ChevronDown,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 /* Sold and Rented sit under Listings (`sub`): where listings go once a sale
-   or a let is done. */
+   or a let is done. In the sidebar they fold away under Listings. */
 const LINKS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true, badge: false },
   { href: "/admin/listings", label: "Listings", icon: Home, exact: false, badge: false },
@@ -29,6 +31,37 @@ const LINKS = [
   { href: "/admin/settings", label: "Settings", icon: Settings, exact: false, badge: false },
   { href: "/admin/recycle-bin", label: "Recycle bin", icon: Trash2, exact: false, badge: false },
 ] as const;
+
+/* Whether Sold / Rented are left open, remembered in this browser (and in
+   memory where storage isn't available, e.g. private browsing). */
+const OPEN_KEY = "ve-admin-listings-open";
+let openInMemory = false;
+const openListeners = new Set<() => void>();
+function subscribeOpen(onChange: () => void) {
+  openListeners.add(onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    openListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+function readOpen(): boolean {
+  try {
+    const saved = localStorage.getItem(OPEN_KEY);
+    return saved === null ? openInMemory : saved === "1";
+  } catch {
+    return openInMemory;
+  }
+}
+function writeOpen(value: boolean) {
+  openInMemory = value;
+  try {
+    localStorage.setItem(OPEN_KEY, value ? "1" : "0");
+  } catch {
+    // Not remembered across visits, which is fine.
+  }
+  openListeners.forEach((listener) => listener());
+}
 
 export function AdminNav({
   newEnquiries,
@@ -44,6 +77,17 @@ export function AdminNav({
   binCount?: number;
 }) {
   const pathname = usePathname();
+
+  /*
+   * Sold / Rented fold under Listings in the sidebar. They're always shown
+   * while you're on one of them; otherwise the sidebar remembers whether they
+   * were left open. (Phones show the menu as one scrolling row, so there they
+   * are always visible.)
+   */
+  const onSubPage = pathname.startsWith("/admin/sold") || pathname.startsWith("/admin/rented");
+  const expanded = useSyncExternalStore(subscribeOpen, readOpen, () => false);
+  const open = expanded || onSubPage;
+  const toggle = () => writeOpen(!open);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -62,14 +106,18 @@ export function AdminNav({
                 : href === "/admin/recycle-bin"
                   ? binCount
                   : 0;
-          return (
+          const isListings = href === "/admin/listings";
+          const link_ = (
             <Link
               key={href}
               href={href}
               className={cn(
                 "flex shrink-0 items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm transition-colors",
-                // Sold and Rented are indented under Listings in the sidebar.
+                // Sold and Rented are indented under Listings in the sidebar,
+                // and fold away with it.
                 sub && "md:ml-5 md:py-2",
+                sub && !open && "md:hidden",
+                isListings && "md:flex-1 md:pr-10",
                 active
                   ? "bg-brand text-white"
                   : "text-ink-soft hover:bg-paper-2",
@@ -98,6 +146,27 @@ export function AdminNav({
                 </span>
               )}
             </Link>
+          );
+          if (!isListings) return link_;
+          return (
+            <div key={href} className="relative flex shrink-0 items-center">
+              {link_}
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={open}
+                aria-label={open ? "Hide Sold and Rented" : "Show Sold and Rented"}
+                className={cn(
+                  "absolute right-1.5 hidden h-7 w-7 items-center justify-center rounded-md transition-colors md:inline-flex",
+                  active ? "text-white/80 hover:bg-white/15 hover:text-white" : "text-muted hover:bg-line hover:text-ink",
+                )}
+              >
+                <ChevronDown
+                  size={16}
+                  className={cn("transition-transform duration-200", open && "rotate-180")}
+                />
+              </button>
+            </div>
           );
         })}
       </nav>
