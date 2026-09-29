@@ -40,12 +40,23 @@ export function HowItWorks() {
           </p>
         </div>
 
-        <ol className="mt-14 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Raised cards, like the ones above, so the steps read as steps
+            rather than fading into the page. */}
+        <ol className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (
-            <li key={s.n} className="border-t border-line pt-5">
-              <span className="font-serif text-3xl text-sand">{s.n}</span>
-              <h3 className="mt-3 text-lg">{s.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{s.body}</p>
+            <li
+              key={s.n}
+              className="ve-card group relative flex flex-col overflow-hidden rounded-2xl p-7 transition-all duration-300 ease-out hover:-translate-y-1"
+            >
+              <span
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-1 bg-brand/80 transition-colors duration-300 group-hover:bg-sand"
+              />
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand font-serif text-lg text-white shadow-md transition-transform duration-300 ease-out group-hover:scale-105">
+                {s.n}
+              </span>
+              <h3 className="mt-5 text-xl">{s.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-soft">{s.body}</p>
             </li>
           ))}
         </ol>
