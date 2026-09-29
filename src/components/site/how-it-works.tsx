@@ -48,10 +48,8 @@ export function HowItWorks() {
               key={s.n}
               className="ve-card group relative flex flex-col overflow-hidden rounded-2xl p-7 transition-all duration-300 ease-out hover:-translate-y-1"
             >
-              <span
-                aria-hidden
-                className="absolute inset-x-0 top-0 h-1 bg-brand/80 transition-colors duration-300 group-hover:bg-sand"
-              />
+              {/* The same thin dark line as the menu's underline — no gold. */}
+              <span aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-ink" />
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand font-serif text-lg text-white shadow-md transition-transform duration-300 ease-out group-hover:scale-105">
                 {s.n}
               </span>
