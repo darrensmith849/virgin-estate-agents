@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -81,6 +82,9 @@ export const listings = pgTable(
     status: listingStatus("status").notNull().default("draft"),
     kind: listingKind("kind").notNull().default("sale"),
     propertyType: text("property_type").notNull().default("house"),
+    /** Where it's grouped on the website: "residential" | "commercial" |
+     *  "industrial" | "land". Null = worked out from the property type. */
+    category: text("category"),
 
     // Pricing — USD whole dollars (Zimbabwean property convention).
     price: integer("price").notNull().default(0),
@@ -116,6 +120,9 @@ export const listings = pgTable(
     /** Position in the homepage featured grid, lowest first. Only meaningful
      *  while isFeatured is true; set by dragging in the admin. */
     featuredOrder: integer("featured_order").default(0).notNull(),
+    /** Reference number (shown as VE-001), in the order listings first went
+     *  live. Null for drafts; given from listing_ref_seq on first publish. */
+    refNumber: integer("ref_number"),
     viewsCount: integer("views_count").default(0).notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -132,6 +139,7 @@ export const listings = pgTable(
     index("listings_featured_idx").on(t.isFeatured),
     index("listings_featured_order_idx").on(t.isFeatured, t.featuredOrder),
     index("listings_deleted_at_idx").on(t.deletedAt),
+    uniqueIndex("listings_ref_number_idx").on(t.refNumber),
   ],
 );
 

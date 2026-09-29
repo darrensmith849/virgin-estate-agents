@@ -7,7 +7,7 @@ import { listAllAgents } from "@/lib/data/agents";
 import { getAgencySettings } from "@/lib/data/settings";
 import { resolveVocabulary } from "@/lib/vocabulary";
 import { deleteListing, restoreListing, updateListing } from "@/lib/actions/listings";
-import { LISTING_BIN_DAYS } from "@/lib/constants";
+import { LISTING_BIN_DAYS, formatRef } from "@/lib/constants";
 import { ListingForm } from "@/components/admin/listing-form";
 import { ImageUploader } from "@/components/admin/image-uploader";
 import { PageHeader } from "@/components/admin/page-header";
@@ -69,7 +69,16 @@ export default async function EditListingPage({
         <ArrowLeft size={15} /> Back to listings
       </Link>
 
-      <PageHeader title="Edit listing" description={listing.title}>
+      <PageHeader
+        title="Edit listing"
+        description={
+          formatRef(listing.refNumber)
+            ? `${formatRef(listing.refNumber)} · ${listing.title}`
+            : listing.status === "draft"
+              ? `${listing.title} · gets a reference number when published`
+              : listing.title
+        }
+      >
         {/* Drafts aren't on the public site, so send them to the admin preview
             instead of a URL that would 404. */}
         <a

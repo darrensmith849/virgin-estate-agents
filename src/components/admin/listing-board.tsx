@@ -15,7 +15,7 @@ import {
 
 import { setFeaturedOrder, setListingStatus, deleteListing } from "@/lib/actions/listings";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
-import { LISTING_BIN_DAYS, LISTING_STATUSES, statusLabel } from "@/lib/constants";
+import { LISTING_BIN_DAYS, LISTING_STATUSES, formatRef, statusLabel } from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -35,6 +35,8 @@ import { cn, formatPrice } from "@/lib/utils";
 export type BoardListing = {
   id: string;
   slug: string;
+  /** Sequential reference (VE-007); null for drafts. */
+  refNumber: number | null;
   title: string;
   suburb: string | null;
   kind: "sale" | "rent";
@@ -119,6 +121,7 @@ function Card({
         <p className="truncate font-medium text-ink">{listing.title}</p>
         <p className="truncate text-sm text-muted">
           {[
+            formatRef(listing.refNumber),
             listing.suburb,
             KIND_LABEL[listing.kind] ?? listing.kind,
             formatPrice(listing.price, { kind: listing.kind, period: listing.rentPeriod }),

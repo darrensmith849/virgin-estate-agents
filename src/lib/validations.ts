@@ -39,6 +39,11 @@ export const listingSchema = z.object({
     .trim()
     .min(1, "Choose or type a property type")
     .max(60, "That property type is too long"),
+  // Where it's grouped on the website; blank = work it out from the type.
+  category: z
+    .enum(["", "residential", "commercial", "industrial", "land"])
+    .default("")
+    .transform((v) => v || null),
   price: z.coerce.number().int().min(0, "Price can't be negative").default(0),
   rentPeriod: optionalString,
   // Blank means "doesn't apply to this property" and is stored as NULL, which

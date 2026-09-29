@@ -66,6 +66,7 @@ export const PROPERTY_TYPES = [
   { value: "cluster", label: "Cluster home" },
   { value: "stand", label: "Stand / Land" },
   { value: "commercial", label: "Commercial" },
+  { value: "industrial", label: "Industrial" },
   { value: "farm", label: "Farm / Smallholding" },
 ] as const;
 
@@ -80,6 +81,11 @@ export const LISTING_STATUSES = [
   { value: "under_offer", label: "Under Offer", tone: "amber" },
   { value: "sold", label: "Sold", tone: "neutral" },
 ] as const;
+
+/** A listing's reference as shown to people: 7 → "VE-007". */
+export function formatRef(refNumber: number | null | undefined): string | null {
+  return refNumber ? `VE-${String(refNumber).padStart(3, "0")}` : null;
+}
 
 /** A status as it reads for this listing: a rental is "To Rent", then "Let". */
 export function statusLabel(status: string, kind?: string | null): string {
@@ -122,6 +128,7 @@ export const PROPERTY_TYPE_SUGGESTIONS = [
   "Cluster home",
   "Stand / Land",
   "Commercial",
+  "Industrial / Warehouse",
   "Farm / Smallholding",
 ] as const;
 

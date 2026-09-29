@@ -13,14 +13,36 @@ export default async function AdminListingsPage() {
   // Clear out anything that has been in the recycle bin past its 30 days.
   await purgeExpiredListings();
   const items = await listAdminListings();
+  // Sold listings move to the Sold list on the dashboard.
+  const sold = items.filter((l) => l.status === "sold").length;
+  const time = (d: Date | null) => (d ? new Date(d).getTime() : 0);
+  const active = items.filter((l) => l.status !== "sold");
+  // The homepage group, in the order the homepage shows it.
+  const featured = active
+    .filter((l) => l.isFeatured)
+    .sort((a, b) => a.featuredOrder - b.featuredOrder || time(b.publishedAt) - time(a.publishedAt));
+  // The rest: drafts being worked on first, then by reference number — first
+  // listed to most recent.
+  const drafts = active
+    .filter((l) => !l.isFeatured && l.status === "draft")
+    .sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
+  const listed = active
+    .filter((l) => !l.isFeatured && l.status !== "draft")
+    .sort(
+      (a, b) =>
+        (a.refNumber ?? Number.MAX_SAFE_INTEGER) - (b.refNumber ?? Number.MAX_SAFE_INTEGER) ||
+        time(a.publishedAt) - time(b.publishedAt),
+    );
+  const onBoard = [...featured, ...drafts, ...listed];
 
   // Flattened to just what the board renders, so the whole listing row (and
   // every agent field on it) isn't serialised into the client bundle.
-  const board: BoardListing[] = items.map((l) => {
+  const board: BoardListing[] = onBoard.map((l) => {
     const cover = l.images.find((i) => i.isCover) ?? l.images[0] ?? null;
     return {
       id: l.id,
       slug: l.slug,
+      refNumber: l.refNumber,
       title: l.title,
       suburb: l.suburb,
       kind: l.kind,
@@ -57,7 +79,16 @@ export default async function AdminListingsPage() {
           </Link>
         </div>
       ) : (
-        <ListingBoard listings={board} />
+        <>
+          <ListingBoard listings={board} />
+          <p className="mt-6 text-sm text-muted">
+            Sold properties move to the{" "}
+            <Link href="/admin#sold" className="text-brand hover:underline">
+              Sold list on the Dashboard
+            </Link>
+            {sold > 0 ? ` (${sold} so far)` : ""}, and stay on the website marked SOLD.
+          </p>
+        </>
       )}
     </>
   );

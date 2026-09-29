@@ -27,7 +27,7 @@ import { ShareButton } from "@/components/listings/share-button";
 import { ViewTracker } from "@/components/listings/view-tracker";
 import { AdminBar } from "@/components/admin/admin-bar";
 import { ListingCard } from "@/components/listings/listing-card";
-import { SITE } from "@/lib/constants";
+import { SITE, formatRef } from "@/lib/constants";
 import { formatPropertyType, type Vocabulary } from "@/lib/vocabulary";
 import { slugifySuburb, suburbBlurb } from "@/lib/suburbs";
 import { formatArea, formatPrice } from "@/lib/utils";
@@ -132,7 +132,11 @@ export function ListingDetail({
     draft: "Draft",
   };
   const keyFacts = [
-    { label: "Reference", value: `VE-${listing.id.slice(0, 6).toUpperCase()}` },
+    {
+      label: "Reference",
+      // Sequential once numbered (VE-007); the old id-based form until then.
+      value: formatRef(listing.refNumber) ?? `VE-${listing.id.slice(0, 6).toUpperCase()}`,
+    },
     listing.publishedAt
       ? {
           label: "Listed",

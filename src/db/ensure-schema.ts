@@ -9,7 +9,9 @@ import { db, isDbConfigured } from "./index";
  * `listings.deleted_at` to a database without it would fail every listing query
  * — and public pages swallow read errors, so the site would quietly show no
  * listings at all. The same SQL lives in drizzle/0005_listing_recycle_bin.sql
- * and drizzle/0006_video_posters.sql, and should be applied by hand before deploying; this is the safety net, run
+ * drizzle/0006_video_posters.sql and drizzle/0007_listing_refs_and_category.sql
+ * (which also numbers existing listings), and should be applied by hand before
+ * deploying; this is the safety net, run
  * at server start from instrumentation.ts.
  *
  * It only looks first and adds what is missing, so on a database that already
@@ -25,6 +27,8 @@ const COLUMNS = [
   { table: "agency_settings", column: "spec_options", type: sql`jsonb` },
   { table: "agency_settings", column: "hidden_specs", type: sql`jsonb` },
   { table: "listing_videos", column: "poster_url", type: sql`text` },
+  { table: "listings", column: "ref_number", type: sql`integer` },
+  { table: "listings", column: "category", type: sql`text` },
 ] as const;
 
 export async function ensureSchema(): Promise<void> {
@@ -39,7 +43,9 @@ export async function ensureSchema(): Promise<void> {
           ('listings', 'deleted_at'),
           ('agency_settings', 'spec_options'),
           ('agency_settings', 'hidden_specs'),
-          ('listing_videos', 'poster_url')
+          ('listing_videos', 'poster_url'),
+          ('listings', 'ref_number'),
+          ('listings', 'category')
         )
     `)) as unknown as { table_name: string; column_name: string }[];
     present = new Set(

@@ -25,6 +25,7 @@ function parseListingForm(formData: FormData) {
     status: formData.get("status"),
     kind: formData.get("kind"),
     propertyType: formData.get("propertyType"),
+    category: formData.get("category") ?? "",
     price: formData.get("price"),
     rentPeriod: formData.get("rentPeriod"),
     bedrooms: formData.get("bedrooms"),
@@ -65,15 +66,36 @@ export async function createListing(
   // Photos, when added, are attached to a draft created via createDraftListing,
   // so this plain-create path only runs for a listing with no photos yet.
   const data = parsed.data;
-  await db.insert(listings).values({
-    ...data,
-    slug: uniqueSlug(data.title),
-    publishedAt: data.status === "draft" ? null : new Date(),
-  });
+  const [created] = await db
+    .insert(listings)
+    .values({
+      ...data,
+      slug: uniqueSlug(data.title),
+      publishedAt: data.status === "draft" ? null : new Date(),
+    })
+    .returning({ id: listings.id });
+  await assignRefNumber(created.id);
 
+  revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/"); // home featured grid is static
   redirect("/admin/listings");
+}
+
+/**
+ * Give a listing its reference number the first time it goes live: the next
+ * in order (VE-008 after VE-007), never reused. Drafts get none, so abandoned
+ * drafts leave no gaps. Never blocks a save — a failure is only logged.
+ */
+async function assignRefNumber(id: string): Promise<void> {
+  try {
+    await db.execute(sql`
+      UPDATE listings SET ref_number = nextval('listing_ref_seq')
+      WHERE id = ${id} AND ref_number IS NULL AND status <> 'draft'
+    `);
+  } catch (err) {
+    console.error("[ref] couldn't give the listing a reference number:", err);
+  }
 }
 
 /** Slug base for a placeholder draft created before the form is filled in. */
@@ -157,7 +179,9 @@ export async function updateListing(
     .update(listings)
     .set({ ...data, ...cleared, ...slug, publishedAt, updatedAt: new Date() })
     .where(eq(listings.id, id));
+  await assignRefNumber(id);
 
+  revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath(`/admin/listings/${id}/edit`);
   revalidatePath("/"); // home featured grid is static
@@ -185,7 +209,9 @@ export async function setListingPublished(
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id));
+  await assignRefNumber(id);
 
+  revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/"); // home featured grid is static
   revalidatePath("/listings");
@@ -244,7 +270,9 @@ export async function setListingStatus(id: string, status: string): Promise<void
       updatedAt: new Date(),
     })
     .where(eq(listings.id, id));
+  await assignRefNumber(id);
 
+  revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/");
   revalidatePath("/listings");

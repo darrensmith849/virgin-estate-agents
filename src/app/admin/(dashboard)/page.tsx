@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/listings/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { formatPrice, timeAgo } from "@/lib/utils";
+import { formatRef } from "@/lib/constants";
 
 export default async function DashboardPage() {
   const [stats, user] = await Promise.all([
@@ -106,7 +107,9 @@ export default async function DashboardPage() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-ink">{l.title}</p>
                     <p className="text-xs text-muted">
-                      {formatPrice(l.price, { kind: l.kind, period: l.rentPeriod })}
+                      {[formatRef(l.refNumber), formatPrice(l.price, { kind: l.kind, period: l.rentPeriod })]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                   </div>
                   <StatusBadge status={l.status} kind={l.kind} />
@@ -116,6 +119,47 @@ export default async function DashboardPage() {
           </ul>
         </section>
       </div>
+
+      {/* Sold: taken off the listings board, kept here with the reference. */}
+      <section id="sold" className="mt-6 min-w-0 scroll-mt-20 rounded-xl border border-line bg-card">
+        <div className="flex items-baseline justify-between gap-3 border-b border-line px-5 py-4">
+          <h2 className="text-base font-medium text-ink">
+            Sold <span className="font-normal text-muted">({stats.sold.length})</span>
+          </h2>
+          <p className="hidden text-xs text-muted sm:block">
+            Still on the website, marked SOLD. Open one to change its status back.
+          </p>
+        </div>
+        <ul className="divide-y divide-line">
+          {stats.sold.length === 0 && (
+            <li className="px-5 py-6 text-sm text-muted">
+              Nothing sold yet. When a listing is marked Sold it moves here from the Listings page,
+              with its reference number.
+            </li>
+          )}
+          {stats.sold.map((l) => (
+            <li key={l.id}>
+              <Link
+                href={`/admin/listings/${l.id}/edit`}
+                className="flex items-center gap-4 px-5 py-3.5 hover:bg-paper-2"
+              >
+                <span className="w-16 shrink-0 text-sm font-medium tabular-nums text-brand">
+                  {formatRef(l.refNumber) ?? "—"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-ink">{l.title}</p>
+                  <p className="truncate text-xs text-muted">
+                    {[l.suburb, formatPrice(l.price, { kind: l.kind, period: l.rentPeriod })]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <StatusBadge status="sold" kind={l.kind} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </>
   );
 }
