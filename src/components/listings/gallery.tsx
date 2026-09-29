@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { X, ChevronLeft, ChevronRight, Expand, ImageOff } from "lucide-react";
 import { mediaSrc } from "@/lib/media";
@@ -10,6 +10,8 @@ type GalleryImage = { url: string; alt: string | null };
 export function Gallery({ images, title }: { images: GalleryImage[]; title: string }) {
   const [main, setMain] = useState(0);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  /** Where a swipe in the viewer started. */
+  const touchX = useRef<number | null>(null);
 
   const close = useCallback(() => setLightbox(null), []);
   const go = useCallback(
@@ -46,15 +48,23 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
   return (
     <>
       <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-paper-2">
-        <Image
-          src={mediaSrc(images[main].url)}
-          alt={images[main].alt ?? title}
-          fill
-          priority
-          sizes="(max-width: 1024px) 100vw, 66vw"
-          quality={60}
-          className="object-cover"
-        />
+        {/* The whole photo opens the viewer, not just the button on it. */}
+        <button
+          type="button"
+          onClick={() => setLightbox(main)}
+          aria-label={`Open photo ${main + 1} of ${images.length} full screen`}
+          className="group absolute inset-0 block cursor-zoom-in"
+        >
+          <Image
+            src={mediaSrc(images[main].url)}
+            alt={images[main].alt ?? title}
+            fill
+            preload
+            sizes="(max-width: 1024px) 100vw, 66vw"
+            quality={60}
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]"
+          />
+        </button>
         <button
           type="button"
           onClick={() => setLightbox(main)}
@@ -70,7 +80,8 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
             <button
               key={i}
               type="button"
-              onClick={() => setMain(i)}
+              // The "+N" tile opens the viewer to see the rest.
+              onClick={() => (i === 4 && images.length > 5 ? setLightbox(4) : setMain(i))}
               className={`relative aspect-square overflow-hidden rounded-lg bg-paper-2 ring-offset-2 transition ${
                 main === i ? "ring-2 ring-brand" : "hover:opacity-80"
               }`}
@@ -98,6 +109,18 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
           onClick={close}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${title} — photo ${lightbox + 1} of ${images.length}`}
+          // Swipe left or right on a phone to move between photos.
+          onTouchStart={(e) => (touchX.current = e.touches[0]?.clientX ?? null)}
+          onTouchEnd={(e) => {
+            const start = touchX.current;
+            touchX.current = null;
+            const end = e.changedTouches[0]?.clientX;
+            if (start === null || end === undefined || Math.abs(end - start) < 50) return;
+            go(end < start ? 1 : -1);
+          }}
         >
           <button
             type="button"
@@ -126,11 +149,22 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
               src={mediaSrc(images[lightbox].url)}
               alt={images[lightbox].alt ?? title}
               fill
+              loading="eager"
               sizes="100vw"
               quality={60}
               className="object-contain"
             />
           </div>
+          {/* Load the photos either side now, so moving to them is instant. */}
+          {images.length > 1 &&
+            [1, -1].map((d) => {
+              const i = (lightbox + d + images.length) % images.length;
+              return (
+                <div key={d} className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0" aria-hidden>
+                  <Image src={mediaSrc(images[i].url)} alt="" fill sizes="100vw" quality={60} loading="eager" />
+                </div>
+              );
+            })}
           <button
             type="button"
             onClick={(e) => {
