@@ -1,8 +1,5 @@
-import { ExternalLink } from "lucide-react";
-
 import { LeafletMap } from "@/components/listings/leaflet-map";
 import { MapDirections } from "@/components/site/map-directions";
-import { mapSearchUrl } from "@/lib/maps";
 
 /*
  * PropertyMap — a single-location map that pinpoints a place using the clean,
@@ -31,22 +28,12 @@ export function PropertyMap({
           className="h-72 w-full sm:h-80"
         />
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <MapDirections
-          latitude={latitude}
-          longitude={longitude}
-          address={directionsAddress}
-        />
-        <a
-          href={mapSearchUrl(latitude, longitude)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink"
-        >
-          View larger map
-          <ExternalLink size={12} />
-        </a>
-      </div>
+      <MapDirections
+        latitude={latitude}
+        longitude={longitude}
+        address={directionsAddress}
+        className="mt-3"
+      />
     </div>
   );
 }

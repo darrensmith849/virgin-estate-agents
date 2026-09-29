@@ -34,14 +34,16 @@ type MapListing = {
 function compactPrice(l: Pick<MapListing, "price" | "kind" | "rentPeriod">) {
   const n = l.price;
   const amount =
-    n >= 1_000_000
+    n >= 999_500 // $999,999 reads "$1m", not "$1000k"
       ? `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`
-      : n >= 1_000
+      : n >= 10_000
         ? `$${Math.round(n / 1000)}k`
-        : `$${n}`;
+        : n >= 1_000
+          ? // Below $10k keep one decimal, so a $1,800 rent isn't shown as "$2k".
+            `$${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`
+          : `$${n}`;
   if (l.kind !== "rent") return amount;
-  const per = (l.rentPeriod || "month").slice(0, 2).toLowerCase();
-  return `${amount}/${per}`;
+  return `${amount}/${l.rentPeriod === "week" ? "wk" : "mo"}`;
 }
 
 function escapeHtml(s: string) {

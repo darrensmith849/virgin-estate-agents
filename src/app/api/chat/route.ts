@@ -6,6 +6,7 @@ import {
 import { listPublicListings } from "@/lib/data/listings";
 import { withinRateLimit } from "@/lib/rate-limit";
 import { SITE } from "@/lib/constants";
+import { formatPhone } from "@/lib/utils";
 import { getContactDetails } from "@/lib/data/settings";
 
 export const dynamic = "force-dynamic";
@@ -141,7 +142,7 @@ export async function POST(req: Request): Promise<Response> {
   // per IP before doing any work.
   if (!(await withinRateLimit("CHAT_LIMITER"))) {
     // No database work for a throttled caller: the built-in number will do.
-    return Response.json({ reply: busy(SITE.whatsapp) }, { status: 429 });
+    return Response.json({ reply: busy(formatPhone(SITE.whatsapp)) }, { status: 429 });
   }
   // The agency's contact details from Settings, for the prompt and fallback.
   const contact = await getContactDetails();

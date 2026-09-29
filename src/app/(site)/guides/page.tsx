@@ -6,6 +6,10 @@ import { Container } from "@/components/ui/container";
 import { HARARE_SUBURBS } from "@/lib/constants";
 import { slugifySuburb, suburbBlurb } from "@/lib/suburbs";
 
+// Rendered on request: the page (and its footer) shows the contact details
+// from Settings, and a pre-built copy would be cached for a year.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Harare neighbourhood guides",
   description:

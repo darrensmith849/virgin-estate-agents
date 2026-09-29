@@ -6,7 +6,7 @@ import { OfficeMapDialog } from "@/components/site/office-map-dialog";
 import { NAV_LINKS, SITE } from "@/lib/constants";
 import { OFFICE_COORDS } from "@/lib/suburb-coords";
 import { slugifySuburb } from "@/lib/suburbs";
-import { whatsappLink } from "@/lib/utils";
+import { formatPhone, whatsappLink } from "@/lib/utils";
 import { getContactDetails } from "@/lib/data/settings";
 
 const FOOTER_AREAS = ["Borrowdale", "Highlands", "Mount Pleasant", "Avondale"];
@@ -129,40 +129,34 @@ export async function SiteFooter() {
             </li>
             <li className="flex items-start gap-3">
               <Mail size={16} className="mt-0.5 shrink-0 text-sand" />
-              <a
-                href={`mailto:${contact.email}`}
-                className="break-all leading-relaxed transition-colors hover:text-ink"
-              >
-                {contact.email}
+              <a href={`mailto:${contact.email}`} className="group min-w-0">
+                <span className="block text-xs text-muted">Email</span>
+                <span className="block break-all leading-relaxed text-ink-soft transition-colors group-hover:text-ink">
+                  {contact.email}
+                </span>
               </a>
             </li>
             {wa && (
               <li className="flex items-start gap-3">
                 <MessageCircle size={16} className="mt-0.5 shrink-0 text-sand" />
-                <a
-                  href={wa}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group leading-relaxed transition-colors hover:text-ink"
-                >
-                  <span className="block font-medium text-ink">
-                    {SITE.contactName}
-                  </span>
-                  <span className="text-muted transition-colors group-hover:text-ink">
-                    {contact.whatsapp}
+                <a href={wa} target="_blank" rel="noreferrer" className="group min-w-0">
+                  <span className="block text-xs text-muted">WhatsApp · {SITE.contactName}</span>
+                  <span className="block leading-relaxed text-ink-soft transition-colors group-hover:text-ink">
+                    {formatPhone(contact.whatsapp)}
                   </span>
                 </a>
               </li>
             )}
             <li className="flex items-start gap-3">
               <Clock size={16} className="mt-0.5 shrink-0 text-sand" />
-              <span className="leading-relaxed">
+              <div className="min-w-0">
+                <span className="block text-xs text-muted">Opening hours</span>
                 {SITE.hours.split(" · ").map((part) => (
-                  <span key={part} className="block">
+                  <span key={part} className="block leading-relaxed text-ink-soft">
                     {part}
                   </span>
                 ))}
-              </span>
+              </div>
             </li>
           </ul>
         </div>
@@ -171,11 +165,11 @@ export async function SiteFooter() {
       {/* Extra bottom padding on phones so the floating WhatsApp/assistant
           buttons never sit on top of the last row of links. */}
       <div className="border-t border-line">
-        {/* Room on the right for the floating WhatsApp / "Ask us" buttons,
-            which otherwise sit on top of Privacy / Terms on any screen
-            narrower than about 1450px. Phones stack and pad the bottom. */}
-        <Container className="flex flex-col items-center justify-between gap-3 py-6 pb-24 text-xs text-muted sm:flex-row sm:pb-6 sm:pr-40">
-          <p>
+        {/* Three even columns — copyright, the 2KO credit centred, links on the
+            right edge — with room underneath so the floating contact button
+            sits below them, not on top, at the very end of the page. */}
+        <Container className="grid justify-items-center gap-3 pb-24 pt-6 text-xs text-muted sm:grid-cols-3 sm:items-center sm:pb-28">
+          <p className="sm:justify-self-start">
             © {year} {SITE.name}. All rights reserved.
           </p>
           <a
@@ -197,7 +191,7 @@ export async function SiteFooter() {
               }}
             />
           </a>
-          <div className="flex gap-5">
+          <div className="flex gap-5 sm:justify-self-end">
             <Link href="/privacy" className="hover:text-ink">
               Privacy
             </Link>

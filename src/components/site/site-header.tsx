@@ -9,7 +9,7 @@ import { Menu, X } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { buttonVariants } from "@/components/ui/button";
 import { NAV_LINKS, SITE } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 
 export function SiteHeader({ phone = SITE.phone }: { phone?: string }) {
   const pathname = usePathname();
@@ -174,7 +174,7 @@ export function SiteHeader({ phone = SITE.phone }: { phone?: string }) {
               href={`tel:${phone.replace(/\s/g, "")}`}
               className="px-2 py-3 text-sm text-muted"
             >
-              {phone}
+              {formatPhone(phone)}
             </a>
           </Container>
         </div>

@@ -90,7 +90,9 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
                 src={mediaSrc(img.url)}
                 alt={img.alt ?? ""}
                 fill
-                sizes="120px"
+                // Square tiles cropped from landscape photos need roughly
+                // twice their width in pixels, or they come out soft.
+                sizes="(max-width: 640px) 34vw, 260px"
                 quality={50}
                 className="object-cover"
               />

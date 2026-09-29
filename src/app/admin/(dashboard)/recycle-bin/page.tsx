@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ImageOff, RotateCcw } from "lucide-react";
+import { ImageOff, RotateCcw, Trash2 } from "lucide-react";
 
 import { listBinnedListings } from "@/lib/data/listings";
 import {
@@ -11,6 +11,7 @@ import {
 import { LISTING_BIN_DAYS } from "@/lib/constants";
 import { mediaSrc } from "@/lib/media";
 import { PageHeader } from "@/components/admin/page-header";
+import { EmptyState } from "@/components/admin/empty-state";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -37,15 +38,17 @@ export default async function RecycleBinPage() {
       />
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-card p-12 text-center">
-          <p className="text-muted">The recycle bin is empty.</p>
-          <Link
-            href="/admin/listings"
-            className={buttonVariants({ variant: "outline", size: "sm", className: "mt-4" })}
-          >
-            Back to listings
-          </Link>
-        </div>
+        <EmptyState
+          icon={Trash2}
+          title="The recycle bin is empty"
+          action={
+            <Link href="/admin/listings" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Back to listings
+            </Link>
+          }
+        >
+          Deleted listings wait here for {LISTING_BIN_DAYS} days in case you need them back.
+        </EmptyState>
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-card">
           {items.map((listing) => {

@@ -6,14 +6,12 @@ import { Container } from "@/components/ui/container";
 import { listActiveAgents } from "@/lib/data/agents";
 import { whatsappLink } from "@/lib/utils";
 
-/** "Tendai Marufu" -> "TM" for an elegant photo placeholder. */
+/** "Kevin Michael Higgins" -> "KH" (first and last name) for the photo placeholder. */
 function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((part) => part[0] ?? "")
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
+  return (first + last).toUpperCase();
 }
 
 // Render per-request so team edits appear immediately on deploy, instead of
@@ -61,7 +59,9 @@ export default async function AgentsPage() {
             // Director (4th card) is centred on its own row, in line with the trio.
             const centred = team.length === 4 && i === 3 ? " lg:col-start-3" : "";
             return (
-              <div key={a.id} className={`lg:col-span-2${centred}`}>
+              // A column, so the contact buttons line up along the bottom of
+              // each row however long the bios are.
+              <div key={a.id} className={`flex flex-col lg:col-span-2${centred}`}>
                 <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-paper-2">
                   {a.photoUrl ? (
                     <Image
@@ -81,7 +81,7 @@ export default async function AgentsPage() {
                 {a.title && <p className="text-sm text-sand">{a.title}</p>}
                 {a.bio && <p className="mt-2 text-sm leading-relaxed text-muted">{a.bio}</p>}
                 {(wa || a.phone || a.email) && (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
                     {wa && (
                       <a
                         href={wa}

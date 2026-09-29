@@ -3,6 +3,10 @@ import { Container } from "@/components/ui/container";
 import { SITE } from "@/lib/constants";
 import { getContactDetails } from "@/lib/data/settings";
 
+// Rendered on request: the page (and its footer) shows the contact details
+// from Settings, and a pre-built copy would be cached for a year.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Terms of Use",
   description: `The terms governing your use of the ${SITE.name} website, under the laws of Zimbabwe.`,

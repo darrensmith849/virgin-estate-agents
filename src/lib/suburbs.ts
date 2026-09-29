@@ -13,7 +13,7 @@ export function suburbFromSlug(slug: string): string | null {
   return HARARE_SUBURBS.find((s) => slugifySuburb(s) === slug) ?? null;
 }
 
-/** Short editorial intros for the prime suburbs. */
+/** Short editorial intros for each Harare suburb with a guide page. */
 export const SUBURB_BLURBS: Record<string, string> = {
   Borrowdale:
     "Harare's most prestigious address — leafy avenues, gated estates, golf and the city's finest schools.",
@@ -33,6 +33,28 @@ export const SUBURB_BLURBS: Record<string, string> = {
     "Large, leafy stands and a relaxed, established feel north of the city.",
   Newlands:
     "Central, leafy and convenient — characterful homes just minutes from the CBD.",
+  Vainona:
+    "Spacious stands and quality homes in the north, minutes from Borrowdale's shops and schools.",
+  "Hogerty Hill":
+    "Elevated, leafy and peaceful — large stands and substantial homes in the north-east.",
+  Helensvale:
+    "A quiet north-eastern neighbourhood of generous plots and mature trees, close to Borrowdale.",
+  Greendale:
+    "An established eastern suburb of family homes and good-sized gardens, a short drive from town.",
+  Mandara:
+    "Calm and settled in the east — established gardens and comfortable family homes.",
+  Marlborough:
+    "A popular north-western suburb with family homes, good schools and everyday amenities nearby.",
+  Pomona:
+    "North of the city beside Borrowdale, with residential stands and growing commercial development.",
+  Belgravia:
+    "Close to the city centre — character homes and offices on quiet, tree-lined streets.",
+  "Milton Park":
+    "Central and convenient — established homes and offices just west of the CBD.",
+  Mabelreign:
+    "A well-established western suburb offering family homes and good value, with shops and schools nearby.",
+  Westgate:
+    "A western suburb around the Westgate shopping centre, with newer homes and easy road links.",
 };
 
 // For areas without their own write-up, which may be anywhere in Zimbabwe.

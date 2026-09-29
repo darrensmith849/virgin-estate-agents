@@ -3,6 +3,10 @@ import { Container } from "@/components/ui/container";
 import { SITE } from "@/lib/constants";
 import { getContactDetails } from "@/lib/data/settings";
 
+// Rendered on request: the page (and its footer) shows the contact details
+// from Settings, and a pre-built copy would be cached for a year.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: `How ${SITE.name} collects, uses and protects your personal information, in line with Zimbabwe's Cyber and Data Protection Act.`,
@@ -18,7 +22,7 @@ export default async function PrivacyPage() {
 
         <div className="mt-8 space-y-5 leading-relaxed text-ink-soft">
           <p>
-            {SITE.name} (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;)
+            {SITE.name}{" "}(&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;)
             is committed to protecting your privacy. This policy explains what
             personal information we collect through this website, how we use and
             safeguard it, and the rights you have. We handle personal information

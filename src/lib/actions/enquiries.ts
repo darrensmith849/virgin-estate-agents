@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { enquirySchema } from "@/lib/validations";
 import { withinRateLimit } from "@/lib/rate-limit";
 import { sendEnquiryEmails } from "@/lib/email";
-import { whatsappLink } from "@/lib/utils";
+import { formatPhone, whatsappLink } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 import { getContactDetails } from "@/lib/data/settings";
 
@@ -42,7 +42,7 @@ export async function createEnquiry(
   // The form is unauthenticated, so throttle per IP before touching the DB.
   if (!(await withinRateLimit("ENQUIRY_LIMITER"))) {
     return {
-      error: `Too many enquiries from this connection. Please wait a moment, or WhatsApp us on ${SITE.whatsapp}.`,
+      error: `Too many enquiries from this connection. Please wait a moment, or WhatsApp us on ${formatPhone(SITE.whatsapp)}.`,
     };
   }
 

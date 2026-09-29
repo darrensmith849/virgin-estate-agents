@@ -1,9 +1,10 @@
-import { Mail, Phone } from "lucide-react";
+import { Inbox, Mail, Phone } from "lucide-react";
 
 import { listEnquiries } from "@/lib/data/enquiries";
 import { PageHeader } from "@/components/admin/page-header";
+import { EmptyState } from "@/components/admin/empty-state";
 import { EnquiryActions } from "@/components/admin/enquiry-actions";
-import { whatsappLink, timeAgo } from "@/lib/utils";
+import { formatPhone, whatsappLink, timeAgo } from "@/lib/utils";
 
 export const metadata = { title: "Enquiries" };
 
@@ -19,9 +20,9 @@ export default async function EnquiriesPage() {
       />
 
       {enquiries.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-card p-12 text-center text-muted">
-          No enquiries yet.
-        </div>
+        <EmptyState icon={Inbox} title="No enquiries yet">
+          Messages sent from the website&rsquo;s enquiry forms arrive here, newest first.
+        </EmptyState>
       ) : (
         <ul className="space-y-3">
           {enquiries.map((e) => {
@@ -29,8 +30,9 @@ export default async function EnquiriesPage() {
             return (
               <li
                 key={e.id}
+                id={`enquiry-${e.id}`}
                 className={
-                  "rounded-xl border bg-card p-5 " +
+                  "scroll-mt-20 rounded-xl border bg-card p-5 " +
                   (e.status === "new" ? "border-brand-300" : "border-line")
                 }
               >
@@ -60,7 +62,7 @@ export default async function EnquiriesPage() {
                       rel="noreferrer"
                       className="flex items-center gap-1.5 hover:text-ink"
                     >
-                      <Phone size={14} /> {e.phone}
+                      <Phone size={14} /> {formatPhone(e.phone)}
                     </a>
                   )}
                 </div>

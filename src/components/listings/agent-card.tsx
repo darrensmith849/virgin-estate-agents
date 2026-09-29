@@ -3,6 +3,7 @@ import { Phone, Mail, MessageCircle, User } from "lucide-react";
 
 import type { Agent } from "@/db/schema";
 import { whatsappLink } from "@/lib/utils";
+import { formatPhone } from "@/lib/utils";
 
 export function AgentCard({
   agent,
@@ -53,7 +54,7 @@ export function AgentCard({
             href={`tel:${agent.phone.replace(/\s/g, "")}`}
             className="flex items-center justify-center gap-2 rounded-[var(--radius)] border border-line px-4 py-2.5 text-sm text-ink-soft transition-colors hover:bg-paper-2"
           >
-            <Phone size={16} /> {agent.phone}
+            <Phone size={16} /> {formatPhone(agent.phone)}
           </a>
         )}
         {agent.email && (

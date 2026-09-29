@@ -10,11 +10,12 @@ export function VideoGallery({ videos, title }: { videos: ListingVideo[]; title:
   if (videos.length === 0) return null;
 
   return (
-    <section className="mt-6" aria-labelledby="listing-videos-heading">
-      <h2 id="listing-videos-heading" className="text-xl">
-        Property videos
+    <section className="mt-10" aria-labelledby="listing-videos-heading">
+      <h2 id="listing-videos-heading" className="text-2xl">
+        {videos.length > 1 ? "Videos" : "Video"}
       </h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {/* A single video takes the full width; two or more sit side by side. */}
+      <div className={`mt-4 grid gap-3 ${videos.length > 1 ? "sm:grid-cols-2" : ""}`}>
         {videos.map((video, index) => (
           <figure key={video.id} className="overflow-hidden rounded-xl bg-black">
             <video

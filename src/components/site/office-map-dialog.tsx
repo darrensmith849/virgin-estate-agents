@@ -1,11 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { MapPin, ArrowRight, X, ExternalLink } from "lucide-react";
+import { MapPin, ArrowRight, X } from "lucide-react";
 
 import { LeafletMap } from "@/components/listings/leaflet-map";
 import { MapDirections } from "@/components/site/map-directions";
-import { mapSearchUrl } from "@/lib/maps";
 
 /*
  * OfficeMapDialog — renders the office address as a button that opens a small
@@ -39,11 +38,14 @@ export function OfficeMapDialog({
       <button
         type="button"
         onClick={show}
-        className="group flex items-start gap-3 text-left transition-colors hover:text-ink"
+        className="group flex items-start gap-3 text-left"
       >
         <MapPin size={16} className="mt-0.5 shrink-0 text-sand" />
-        <span className="leading-relaxed">
-          {address}
+        <span className="min-w-0">
+          <span className="block text-xs text-muted">Office</span>
+          <span className="block leading-relaxed text-ink-soft transition-colors group-hover:text-ink">
+            {address}
+          </span>
           <span className="mt-1 flex items-center gap-1 text-xs font-medium text-sand transition-colors group-hover:text-brand">
             View on map
             <ArrowRight
@@ -88,22 +90,12 @@ export function OfficeMapDialog({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-5 py-3">
-          <MapDirections
-            latitude={latitude}
-            longitude={longitude}
-            address={address}
-          />
-          <a
-            href={mapSearchUrl(latitude, longitude)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-ink"
-          >
-            View larger map
-            <ExternalLink size={12} />
-          </a>
-        </div>
+        <MapDirections
+          latitude={latitude}
+          longitude={longitude}
+          address={address}
+          className="border-t border-line px-5 py-3"
+        />
       </dialog>
     </>
   );

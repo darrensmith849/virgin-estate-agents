@@ -1,10 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Pencil, User } from "lucide-react";
+import { Plus, Pencil, User, Users } from "lucide-react";
 
 import { listAllAgents } from "@/lib/data/agents";
 import { deleteAgent } from "@/lib/actions/agents";
 import { PageHeader } from "@/components/admin/page-header";
+import { EmptyState } from "@/components/admin/empty-state";
 import { ConfirmDelete } from "@/components/admin/confirm-delete";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -26,9 +27,18 @@ export default async function AdminAgentsPage() {
       </PageHeader>
 
       {agents.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-line bg-card p-12 text-center text-muted">
-          No agents yet.
-        </div>
+        <EmptyState
+          icon={Users}
+          title="No agents yet"
+          action={
+            <Link href="/admin/agents/new" className={buttonVariants({ variant: "primary", size: "sm" })}>
+              <Plus size={16} />
+              Add agent
+            </Link>
+          }
+        >
+          Agents appear on the website&rsquo;s Agents page and can be linked to listings.
+        </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {agents.map((a) => (
