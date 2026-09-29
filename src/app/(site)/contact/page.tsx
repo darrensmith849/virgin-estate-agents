@@ -9,6 +9,7 @@ import { SITE } from "@/lib/constants";
 import { OFFICE_COORDS } from "@/lib/suburb-coords";
 import { addressDirectionsUrls } from "@/lib/maps";
 import { whatsappLink } from "@/lib/utils";
+import { getContactDetails } from "@/lib/data/settings";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -24,12 +25,13 @@ export const dynamic = "force-dynamic";
 const CUE =
   "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sand/40 bg-sand/10 text-sand transition-colors group-hover:border-brand group-hover:bg-brand group-hover:text-white";
 
-export default function ContactPage() {
-  // Canonical contact details come from config so a stale settings row can't
-  // override them (the DB still held old placeholder values).
-  const email = SITE.email;
-  const address = SITE.address;
-  const whatsappNumber = SITE.whatsapp;
+export default async function ContactPage() {
+  // From Settings → Agency details (brought in line with the site's details
+  // when this was connected, so editing them there now takes effect).
+  const contact = await getContactDetails();
+  const email = contact.email;
+  const address = contact.address;
+  const whatsappNumber = contact.whatsapp;
   const wa = whatsappLink(whatsappNumber);
 
   // Secondary contact — Kevin Higgins (Property Consultant), shown under Boyd.

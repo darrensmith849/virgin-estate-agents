@@ -228,6 +228,7 @@ export function ListingDetail({
             <StatusStamp
               status={listing.status}
               kind={listing.kind}
+              kindLabels={vocabulary.kindLabels}
               size="lg"
               className="absolute left-4 top-4 z-10 sm:left-5 sm:top-5"
             />

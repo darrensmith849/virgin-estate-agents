@@ -6,6 +6,7 @@ import {
 import { listPublicListings } from "@/lib/data/listings";
 import { withinRateLimit } from "@/lib/rate-limit";
 import { SITE } from "@/lib/constants";
+import { getContactDetails } from "@/lib/data/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,8 @@ function resolveLlm(e: {
   return { baseUrl, apiKey, model, name };
 }
 
-const FALLBACK = `I'm having trouble reaching the assistant right now — please WhatsApp us on ${SITE.whatsapp}, or send a message via the contact page and a member of the team will get straight back to you.`;
+const fallback = (whatsapp: string) =>
+  `I'm having trouble reaching the assistant right now — please WhatsApp us on ${whatsapp}, or send a message via the contact page and a member of the team will get straight back to you.`;
 
 /** Primary brain: any OpenAI-compatible Chat Completions API — OpenAI, xAI/Grok,
  *  etc. Returns null on any failure so the caller can fall back to Workers AI;
@@ -131,14 +133,18 @@ async function askWorkersAI(
   }
 }
 
-const BUSY = `I'm getting a lot of questions right now — give me a minute and try again, or WhatsApp us on ${SITE.whatsapp} for an immediate reply.`;
+const busy = (whatsapp: string) =>
+  `I'm getting a lot of questions right now — give me a minute and try again, or WhatsApp us on ${whatsapp} for an immediate reply.`;
 
 export async function POST(req: Request): Promise<Response> {
   // This endpoint is public and every call costs a model request, so throttle
   // per IP before doing any work.
   if (!(await withinRateLimit("CHAT_LIMITER"))) {
-    return Response.json({ reply: BUSY }, { status: 429 });
+    // No database work for a throttled caller: the built-in number will do.
+    return Response.json({ reply: busy(SITE.whatsapp) }, { status: 429 });
   }
+  // The agency's contact details from Settings, for the prompt and fallback.
+  const contact = await getContactDetails();
 
   let incoming: unknown;
   try {
@@ -176,7 +182,7 @@ export async function POST(req: Request): Promise<Response> {
   );
 
   const messages: ChatMsg[] = [
-    { role: "system", content: buildSystemPrompt() },
+    { role: "system", content: buildSystemPrompt(contact) },
     ...(listingsBlock
       ? [{ role: "system" as const, content: listingsBlock }]
       : []),
@@ -224,5 +230,5 @@ export async function POST(req: Request): Promise<Response> {
         `Workers AI ${e.CLOUDFLARE_ACCOUNT_ID && e.CLOUDFLARE_AI_TOKEN ? "failed" : "not configured"}) — sent the WhatsApp fallback`,
     );
   }
-  return Response.json({ reply: reply || FALLBACK });
+  return Response.json({ reply: reply || fallback(contact.whatsapp) });
 }

@@ -7,6 +7,7 @@ import { NAV_LINKS, SITE } from "@/lib/constants";
 import { OFFICE_COORDS } from "@/lib/suburb-coords";
 import { slugifySuburb } from "@/lib/suburbs";
 import { whatsappLink } from "@/lib/utils";
+import { getContactDetails } from "@/lib/data/settings";
 
 const FOOTER_AREAS = ["Borrowdale", "Highlands", "Mount Pleasant", "Avondale"];
 
@@ -29,11 +30,13 @@ const SOCIAL_LINKS = [
   },
 ] as const;
 
-export function SiteFooter() {
+export async function SiteFooter() {
   const year = new Date().getFullYear();
-  const wa = whatsappLink(SITE.whatsapp);
+  // From Settings → Agency details / Social links.
+  const contact = await getContactDetails();
+  const wa = whatsappLink(contact.whatsapp);
   const socials = SOCIAL_LINKS.flatMap((s) => {
-    const href = SITE.social[s.key];
+    const href = contact.social[s.key];
     return href ? [{ ...s, href }] : [];
   });
 
@@ -56,7 +59,7 @@ export function SiteFooter() {
 
           {/* Social — only the accounts that actually exist are shown. An icon
               with nowhere to go reads as a broken link, so unset keys in
-              SITE.social are omitted entirely rather than rendered inert. */}
+              Settings are omitted entirely rather than rendered inert. */}
           {socials.length > 0 && (
             <div className="mt-6 flex items-center gap-2.5">
               {socials.map((s) => (
@@ -118,7 +121,7 @@ export function SiteFooter() {
           <ul className="mt-5 space-y-4 text-sm text-muted">
             <li>
               <OfficeMapDialog
-                address={SITE.address}
+                address={contact.address}
                 latitude={OFFICE_COORDS.lat}
                 longitude={OFFICE_COORDS.lng}
                 label={SITE.shortName}
@@ -127,10 +130,10 @@ export function SiteFooter() {
             <li className="flex items-start gap-3">
               <Mail size={16} className="mt-0.5 shrink-0 text-sand" />
               <a
-                href={`mailto:${SITE.email}`}
+                href={`mailto:${contact.email}`}
                 className="break-all leading-relaxed transition-colors hover:text-ink"
               >
-                {SITE.email}
+                {contact.email}
               </a>
             </li>
             {wa && (
@@ -146,7 +149,7 @@ export function SiteFooter() {
                     {SITE.contactName}
                   </span>
                   <span className="text-muted transition-colors group-hover:text-ink">
-                    {SITE.whatsapp}
+                    {contact.whatsapp}
                   </span>
                 </a>
               </li>

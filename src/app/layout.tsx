@@ -52,34 +52,6 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
-// LocalBusiness / RealEstateAgent structured data (site-wide).
-const orgSchema = {
-  "@context": "https://schema.org",
-  "@type": "RealEstateAgent",
-  name: SITE.name,
-  description: SITE.description,
-  url: SITE.url,
-  image: `${SITE.url}/og-image.jpg`,
-  logo: `${SITE.url}/og-image.jpg`,
-  telephone: SITE.whatsapp,
-  email: SITE.email,
-  priceRange: "$$$",
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: "7 Normandy Road",
-    addressLocality: SITE.city,
-    addressCountry: "ZW",
-  },
-  areaServed: { "@type": "City", name: `${SITE.city}, ${SITE.country}` },
-  knowsAbout: [
-    "Borrowdale",
-    "Highlands",
-    "Mount Pleasant",
-    "Avondale",
-    "Chisipite",
-    "Glen Lorne",
-  ],
-};
 
 export default function RootLayout({
   children,
@@ -92,10 +64,6 @@ export default function RootLayout({
       className={`${inter.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
-        />
         {children}
         {process.env.NEXT_PUBLIC_CF_BEACON_TOKEN && (
           <Script

@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/container";
 import { SITE } from "@/lib/constants";
+import { getContactDetails } from "@/lib/data/settings";
 
 export const metadata: Metadata = {
   title: "Terms of Use",
   description: `The terms governing your use of the ${SITE.name} website, under the laws of Zimbabwe.`,
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const { email } = await getContactDetails();
   return (
     <Container className="py-14 sm:py-20">
       <article className="mx-auto max-w-2xl">
@@ -87,10 +89,10 @@ export default function TermsPage() {
           <p>
             Questions about these terms? Contact us at{" "}
             <a
-              href={`mailto:${SITE.email}`}
+              href={`mailto:${email}`}
               className="text-brand hover:underline"
             >
-              {SITE.email}
+              {email}
             </a>
             .
           </p>

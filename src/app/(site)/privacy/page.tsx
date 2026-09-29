@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/container";
 import { SITE } from "@/lib/constants";
+import { getContactDetails } from "@/lib/data/settings";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: `How ${SITE.name} collects, uses and protects your personal information, in line with Zimbabwe's Cyber and Data Protection Act.`,
 };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const { email } = await getContactDetails();
   return (
     <Container className="py-14 sm:py-20">
       <article className="mx-auto max-w-2xl">
@@ -99,10 +101,10 @@ export default function PrivacyPage() {
           <p>
             For any privacy questions, or to exercise your rights, contact us at{" "}
             <a
-              href={`mailto:${SITE.email}`}
+              href={`mailto:${email}`}
               className="text-brand hover:underline"
             >
-              {SITE.email}
+              {email}
             </a>
             .
           </p>

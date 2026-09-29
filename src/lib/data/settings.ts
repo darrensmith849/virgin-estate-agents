@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -31,8 +32,12 @@ const FALLBACK_SETTINGS: typeof agencySettings.$inferSelect = {
   updatedAt: new Date(0),
 };
 
-/** Returns the singleton settings row, creating it on first access. */
-export async function getAgencySettings() {
+/**
+ * Returns the singleton settings row, creating it on first access. Cached for
+ * the length of one request, so every part of a page (headings, tabs, the
+ * status stamp on each card) can use the agency's wording without a query each.
+ */
+export const getAgencySettings = cache(async function getAgencySettings() {
   return safeRead(async () => {
     const existing = await db.query.agencySettings.findFirst({
       where: eq(agencySettings.id, 1),
@@ -52,4 +57,28 @@ export async function getAgencySettings() {
       }))!
     );
   }, FALLBACK_SETTINGS);
-}
+});
+
+/**
+ * The agency's contact details as shown across the site — footer, contact
+ * page, WhatsApp button, header, enquiries and the assistant: whatever is
+ * saved in Settings → Agency details / Social links, falling back to the
+ * built-in details for anything left blank.
+ */
+export const getContactDetails = cache(async function getContactDetails() {
+  const s = await getAgencySettings();
+  const pick = (value: string | null | undefined, fallback: string) => value?.trim() || fallback;
+  return {
+    phone: pick(s.phone, SITE.phone),
+    whatsapp: pick(s.whatsapp, SITE.whatsapp),
+    email: pick(s.email, SITE.email),
+    address: pick(s.officeAddress, SITE.address),
+    social: {
+      facebook: pick(s.facebook, SITE.social.facebook),
+      instagram: pick(s.instagram, SITE.social.instagram),
+      linkedin: pick(s.linkedin, SITE.social.linkedin),
+    },
+  };
+});
+
+export type ContactDetails = Awaited<ReturnType<typeof getContactDetails>>;

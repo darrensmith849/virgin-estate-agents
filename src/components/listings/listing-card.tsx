@@ -5,6 +5,8 @@ import { BedDouble, Bath, Maximize, MapPin, ImageOff, ArrowRight } from "lucide-
 import type { Listing } from "@/db/schema";
 import { StatusStamp, stampLabel } from "./status-stamp";
 import { formatPrice, formatArea, cn } from "@/lib/utils";
+import { getAgencySettings } from "@/lib/data/settings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { mediaSrc } from "@/lib/media";
 
 export type CardListing = Pick<
@@ -27,7 +29,7 @@ export type CardListing = Pick<
   images: { url: string; alt: string | null; isCover: boolean }[];
 };
 
-export function ListingCard({
+export async function ListingCard({
   listing,
   className,
   priority = false,
@@ -39,6 +41,8 @@ export function ListingCard({
   const cover =
     listing.images.find((i) => i.isCover) ?? listing.images[0] ?? null;
   const area = formatArea(listing.floorSizeSqm ?? listing.landSizeSqm);
+  // Loaded once per page and shared by every card.
+  const { kindLabels } = resolveVocabulary(await getAgencySettings());
 
   return (
     <Link
@@ -66,9 +70,9 @@ export function ListingCard({
             <ImageOff size={28} />
           </div>
         )}
-        {stampLabel(listing.status, listing.kind) && (
+        {stampLabel(listing.status, listing.kind, kindLabels) && (
           <div className="absolute left-3 top-3">
-            <StatusStamp status={listing.status} kind={listing.kind} />
+            <StatusStamp status={listing.status} kind={listing.kind} kindLabels={kindLabels} />
           </div>
         )}
 

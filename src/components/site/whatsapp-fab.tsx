@@ -1,4 +1,5 @@
 import { SITE } from "@/lib/constants";
+import { getContactDetails } from "@/lib/data/settings";
 import { whatsappLink } from "@/lib/utils";
 import { WhatsappIcon } from "@/components/site/whatsapp-icon";
 
@@ -7,9 +8,11 @@ import { WhatsappIcon } from "@/components/site/whatsapp-icon";
  * page. Renders nothing if no WhatsApp number is configured. Pure CSS hover +
  * entrance (reduced-motion is handled globally), so no client JS is shipped.
  */
-export function WhatsappFab() {
+export async function WhatsappFab() {
+  // The WhatsApp number from Settings → Agency details.
+  const { whatsapp } = await getContactDetails();
   const href = whatsappLink(
-    SITE.whatsapp,
+    whatsapp,
     `Hi ${SITE.name}, I'd like to enquire about a property.`,
   );
   if (!href) return null;

@@ -11,6 +11,7 @@ import { withinRateLimit } from "@/lib/rate-limit";
 import { sendEnquiryEmails } from "@/lib/email";
 import { whatsappLink } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
+import { getContactDetails } from "@/lib/data/settings";
 
 export type EnquiryFormState =
   | {
@@ -46,6 +47,8 @@ export async function createEnquiry(
   }
 
   const { name, email, phone, message, listingId } = parsed.data;
+  // Where to point people: the agency's numbers from Settings.
+  const contact = await getContactDetails();
 
   // Look up the listing first so a bad id can't fail the insert on the FK.
   let listing: { title: string; slug: string } | undefined;
@@ -67,7 +70,7 @@ export async function createEnquiry(
   } catch (err) {
     console.error("[enquiry] Failed to save:", err);
     return {
-      error: `Sorry, something went wrong saving your enquiry. Please WhatsApp us on ${SITE.whatsapp} or call ${SITE.phone}.`,
+      error: `Sorry, something went wrong saving your enquiry. Please WhatsApp us on ${contact.whatsapp} or call ${contact.phone}.`,
     };
   }
 
@@ -104,7 +107,7 @@ export async function createEnquiry(
     .filter((line) => line !== null)
     .join("\n");
 
-  return { ok: true, whatsappUrl: whatsappLink(SITE.whatsapp, summary) ?? undefined };
+  return { ok: true, whatsappUrl: whatsappLink(contact.whatsapp, summary) ?? undefined };
 }
 
 /* ------------------------------- Admin ----------------------------------- */

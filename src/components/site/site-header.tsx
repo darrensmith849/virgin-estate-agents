@@ -11,7 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { NAV_LINKS, SITE } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-export function SiteHeader() {
+export function SiteHeader({ phone = SITE.phone }: { phone?: string }) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -171,10 +171,10 @@ export function SiteHeader() {
               Enquire
             </Link>
             <a
-              href={`tel:${SITE.phone.replace(/\s/g, "")}`}
+              href={`tel:${phone.replace(/\s/g, "")}`}
               className="px-2 py-3 text-sm text-muted"
             >
-              {SITE.phone}
+              {phone}
             </a>
           </Container>
         </div>
