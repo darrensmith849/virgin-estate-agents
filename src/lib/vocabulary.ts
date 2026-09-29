@@ -112,6 +112,52 @@ export function samePropertyType(a: string, b: string): boolean {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Matching a listing's type to the agency's list of types            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Staff type a property's type freely ("Apartments", "Townhouse / Cluster
+ * Home"), while the site's type filter offers the agency's own list from
+ * Settings ("Apartment", "Townhouse", "Cluster home"…). A listing counts as a
+ * type when any part of that type appears in its own, as whole words, ignoring
+ * case and plurals — so "Townhouse / Cluster Home" is found under both
+ * Townhouse and Cluster home, and "Apartments" under Apartment, without
+ * anything the agency typed being changed. "House" does not match "Townhouse".
+ */
+function singular(word: string): string {
+  return word.length > 3 && word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word;
+}
+
+function words(text: string): string[] {
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(singular);
+}
+
+/** The alternatives in a type: "Stand / Land" → ["stand"], ["land"]. The
+ *  whole type is read once (old rows hold slugs), then split as written. */
+function typeParts(type: string): string[][] {
+  return formatPropertyType(type)
+    .split(/\s*(?:\/|&|,|\bor\b)\s*/i)
+    .map(words)
+    .filter((part) => part.length > 0);
+}
+
+export function propertyTypeMatches(listingType: string | null | undefined, type: string): boolean {
+  const all = ` ${words(formatPropertyType(listingType)).join(" ")} `;
+  return typeParts(type).some((part) => all.includes(` ${part.join(" ")} `));
+}
+
+/** The same test as a Postgres regex (used with ~*), for filtering in the database. */
+export function propertyTypePattern(type: string): string {
+  const parts = typeParts(type).map((part) => part.map((w) => `${w}s?`).join("[^a-z0-9]+"));
+  return parts.length ? `\\y(${parts.join("|")})\\y` : "^$";
+}
+
+/** Old listings stored slugs ("cluster"); the ones a type covers. */
+export function legacyTypeSlugs(type: string): string[] {
+  return PROPERTY_TYPES.filter((t) => propertyTypeMatches(t.label, type)).map((t) => t.value);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Broad categories for the public listings page                      */
 /* ------------------------------------------------------------------ */
 

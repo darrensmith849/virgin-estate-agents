@@ -1,14 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, SearchX } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, SearchX } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
 import { ListingCard } from "@/components/listings/listing-card";
 import { ListingsFilters } from "@/components/listings/listings-filters";
 import { ListingsMap } from "@/components/listings/listings-map";
-import { listPropertyTypesInUse, listPublicListings, listSearchAreas } from "@/lib/data/listings";
+import {
+  listCategoryCounts,
+  listPublicListings,
+  listSearchAreas,
+  listTypeFilterOptions,
+} from "@/lib/data/listings";
 import { getAgencySettings } from "@/lib/data/settings";
-import { PROPERTY_CATEGORIES, listingCategory, resolveVocabulary } from "@/lib/vocabulary";
+import {
+  PROPERTY_CATEGORIES,
+  isPropertyCategory,
+  listingCategory,
+  resolveVocabulary,
+} from "@/lib/vocabulary";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -32,26 +42,42 @@ export default async function ListingsPage({
   const sp = await searchParams;
   const view = sp.view === "map" ? "map" : "list";
 
-  const [settings, propertyTypes, areas] = await Promise.all([
-    getAgencySettings(),
-    listPropertyTypesInUse(),
-    listSearchAreas(),
-  ]);
-  const vocabulary = resolveVocabulary(settings);
+  const kind = sp.kind === "sale" || sp.kind === "rent" ? sp.kind : undefined;
+  const category = isPropertyCategory(sp.category) ? sp.category : undefined;
   const sort = (sp.sort as "newest" | "price_asc" | "price_desc") ?? "newest";
 
-  const { items, total, page, pageCount } = await listPublicListings({
-    kind: sp.kind === "sale" || sp.kind === "rent" ? sp.kind : undefined,
-    propertyType: sp.type,
-    suburb: sp.suburb,
-    minPrice: num(sp.minPrice),
-    maxPrice: num(sp.maxPrice),
-    minBeds: num(sp.minBeds),
-    q: sp.q,
-    sort,
-    page: num(sp.page) ?? 1,
-    perPage: view === "map" ? 60 : 12,
-  });
+  const [settings, areas, categories] = await Promise.all([
+    getAgencySettings(),
+    listSearchAreas(),
+    listCategoryCounts(kind),
+  ]);
+  const vocabulary = resolveVocabulary(settings);
+
+  const [propertyTypes, { items, total, sold, page, pageCount }] = await Promise.all([
+    // The same list of types the dashboard offers (Settings → Property types).
+    listTypeFilterOptions(vocabulary.propertyTypeOptions),
+    listPublicListings({
+      kind,
+      category,
+      propertyType: sp.type,
+      suburb: sp.suburb,
+      minPrice: num(sp.minPrice),
+      maxPrice: num(sp.maxPrice),
+      minBeds: num(sp.minBeds),
+      q: sp.q,
+      sort,
+      page: num(sp.page) ?? 1,
+      perPage: view === "map" ? 60 : 12,
+    }),
+  ]);
+
+  /** This search narrowed to one category. */
+  const categoryHref = (key: string) => {
+    const next = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) if (v && k !== "page") next.set(k, v);
+    next.set("category", key);
+    return `/listings?${next.toString()}`;
+  };
 
   const buildPageHref = (p: number) => {
     const next = new URLSearchParams();
@@ -65,11 +91,16 @@ export default async function ListingsPage({
       <header className="mb-6">
         <h1 className="text-3xl sm:text-4xl">Listings</h1>
         <p className="mt-1.5 text-sm text-muted">
-          {total} {total === 1 ? "property" : "properties"} available
+          {total - sold} available{sold > 0 ? ` · ${sold} sold` : ""}
         </p>
       </header>
 
-      <ListingsFilters propertyTypes={propertyTypes} areas={areas} />
+      <ListingsFilters
+        propertyTypes={propertyTypes}
+        areas={areas}
+        kindLabels={vocabulary.kindLabels}
+        categories={categories}
+      />
 
       <div className="mt-8">
         {items.length === 0 ? (
@@ -165,7 +196,23 @@ export default async function ListingsPage({
                                 bothKinds ? "text-lg" : "text-xl",
                               )}
                             >
-                              {cat.label}
+                              {/* Click a category to see only that category. */}
+                              {category ? (
+                                cat.label
+                              ) : (
+                                <Link
+                                  href={categoryHref(cat.key)}
+                                  prefetch
+                                  scroll={false}
+                                  className="group inline-flex items-baseline gap-1.5 transition-colors hover:text-brand"
+                                >
+                                  {cat.label}
+                                  <ArrowRight
+                                    size={15}
+                                    className="self-center text-muted transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-brand"
+                                  />
+                                </Link>
+                              )}
                               <span className="text-sm font-normal text-muted">
                                 {count(cat.rows.length)}
                               </span>

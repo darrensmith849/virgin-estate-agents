@@ -5,7 +5,14 @@ import { db } from "@/db";
 import { listings, listingImages, listingVideos } from "@/db/schema";
 import { ensureVideoTable } from "@/db/bootstrap";
 import { backfillVideoPosters } from "@/lib/video-posters";
-import { formatPropertyType } from "@/lib/vocabulary";
+import {
+  PROPERTY_CATEGORIES,
+  formatPropertyType,
+  legacyTypeSlugs,
+  propertyTypeMatches,
+  propertyTypePattern,
+  type PropertyCategory,
+} from "@/lib/vocabulary";
 import { HARARE_SUBURBS } from "@/lib/constants";
 import { safeRead } from "./_safe";
 
@@ -26,6 +33,8 @@ async function listingVideosFor(listingId: string) {
 
 export type PublicListingFilters = {
   kind?: "sale" | "rent";
+  /** Residential, commercial, industrial or land. */
+  category?: PropertyCategory;
   propertyType?: string;
   suburb?: string;
   minPrice?: number;
@@ -53,6 +62,44 @@ const CATEGORY_ORDER_SQL = sql`CASE ${listings.category}
     ELSE 1 END
   END`;
 
+/** A category's position in CATEGORY_ORDER_SQL. */
+function categoryRank(category: PropertyCategory): number {
+  return PROPERTY_CATEGORIES.findIndex((c) => c.key === category) + 1;
+}
+
+/**
+ * How many properties are on the site in each category (for the quick
+ * category buttons), optionally for sale or to rent only. Categories with
+ * nothing in them are left out.
+ */
+export async function listCategoryCounts(kind?: "sale" | "rent") {
+  return safeRead(async () => {
+    const conditions = [inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted];
+    if (kind) conditions.push(eq(listings.kind, kind));
+    const rows = await db
+      .select({ rank: sql<number>`${CATEGORY_ORDER_SQL}`, count: sql<number>`count(*)::int` })
+      .from(listings)
+      .where(and(...conditions))
+      .groupBy(sql`1`);
+    return PROPERTY_CATEGORIES.map((c, i) => ({
+      ...c,
+      count: rows.find((r) => Number(r.rank) === i + 1)?.count ?? 0,
+    })).filter((c) => c.count > 0);
+  }, [] as { key: PropertyCategory; label: string; count: number }[]);
+}
+
+/**
+ * The type filter's options: the agency's own list from Settings — the same
+ * one the dashboard offers — narrowed to the types that have properties, plus
+ * any typed type that falls under none of them, so nothing is unfindable.
+ */
+export async function listTypeFilterOptions(agencyTypes: string[]): Promise<string[]> {
+  const inUse = await listPropertyTypesInUse();
+  const listed = agencyTypes.filter((type) => inUse.some((t) => propertyTypeMatches(t, type)));
+  const leftovers = inUse.filter((t) => !agencyTypes.some((type) => propertyTypeMatches(t, type)));
+  return [...listed, ...leftovers];
+}
+
 /** Listings in the recycle bin are hidden from every read except the bin's. */
 const notDeleted = isNull(listings.deletedAt);
 
@@ -72,10 +119,21 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
 
   const conditions = [inArray(listings.status, [...PUBLIC_STATUSES]), notDeleted];
   if (filters.kind) conditions.push(eq(listings.kind, filters.kind));
-  // Legacy rows hold the old lowercase slugs ("house") while anything typed
-  // since is stored as written ("House"), so match without case.
-  if (filters.propertyType)
-    conditions.push(sql`lower(${listings.propertyType}) = lower(${filters.propertyType})`);
+  if (filters.category) conditions.push(sql`${CATEGORY_ORDER_SQL} = ${categoryRank(filters.category)}`);
+  // A type from the agency's list matches every listing whose own typed type
+  // contains it ("Cluster home" finds "Townhouse / Cluster Home") — the same
+  // rule as propertyTypeMatches(). Old rows hold slugs ("house"); an exact
+  // match covers anything else.
+  if (filters.propertyType) {
+    const type = filters.propertyType;
+    conditions.push(
+      or(
+        sql`${listings.propertyType} ~* ${propertyTypePattern(type)}`,
+        sql`lower(${listings.propertyType}) = lower(${type})`,
+        ...legacyTypeSlugs(type).map((slug) => sql`lower(${listings.propertyType}) = ${slug}`),
+      )!,
+    );
+  }
   if (filters.suburb) conditions.push(eq(listings.suburb, filters.suburb));
   if (filters.minPrice) conditions.push(gte(listings.price, filters.minPrice));
   if (filters.maxPrice) conditions.push(lte(listings.price, filters.maxPrice));
@@ -114,21 +172,32 @@ export async function listPublicListings(filters: PublicListingFilters = {}) {
           offset: (page - 1) * perPage,
           with: {
             agent: true,
-            images: { orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)] },
+            // A card shows one photo, so fetch just that one.
+            images: {
+              orderBy: [desc(listingImages.isCover), asc(listingImages.sortOrder)],
+              limit: 1,
+            },
           },
         }),
-        db.select({ count: sql<number>`count(*)::int` }).from(listings).where(where),
+        db
+          .select({
+            count: sql<number>`count(*)::int`,
+            sold: sql<number>`(count(*) filter (where ${listings.status} = 'sold'))::int`,
+          })
+          .from(listings)
+          .where(where),
       ]);
 
       return {
         items: rows.map((r) => ({ ...r, agent: publicAgent(r.agent) })),
         total: totalRow[0]?.count ?? 0,
+        sold: totalRow[0]?.sold ?? 0,
         page,
         perPage,
         pageCount: Math.max(1, Math.ceil((totalRow[0]?.count ?? 0) / perPage)),
       };
     },
-    { items: [], total: 0, page, perPage, pageCount: 1 },
+    { items: [], total: 0, sold: 0, page, perPage, pageCount: 1 },
   );
 }
 

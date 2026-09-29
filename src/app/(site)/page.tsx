@@ -14,7 +14,8 @@ import { HowItWorks } from "@/components/site/how-it-works";
 import { SellerCta } from "@/components/site/seller-cta";
 import { Faq } from "@/components/site/faq";
 import { Testimonials } from "@/components/site/testimonials";
-import { getFeaturedListings, listPropertyTypesInUse, listSearchAreas } from "@/lib/data/listings";
+import { getFeaturedListings, listSearchAreas, listTypeFilterOptions } from "@/lib/data/listings";
+import { resolveVocabulary } from "@/lib/vocabulary";
 import { getAgencySettings } from "@/lib/data/settings";
 import { cn } from "@/lib/utils";
 
@@ -33,12 +34,13 @@ export const metadata: Metadata = {
 const HERO_IMAGE = "/hero-home.jpg";
 
 export default async function HomePage() {
-  const [featured, propertyTypes, areas, settings] = await Promise.all([
+  const [featured, areas, settings] = await Promise.all([
     getFeaturedListings(6),
-    listPropertyTypesInUse(),
     listSearchAreas(),
     getAgencySettings(),
   ]);
+  // The same list of types the dashboard offers (Settings → Property types).
+  const propertyTypes = await listTypeFilterOptions(resolveVocabulary(settings).propertyTypeOptions);
   // Editable in Settings → Homepage hero; these are the defaults.
   const heroHeadline = settings.heroHeadline?.trim() || "Find a home worth coming back to.";
   const heroSubheadline =
